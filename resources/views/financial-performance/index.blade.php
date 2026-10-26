@@ -332,13 +332,13 @@
 <header>
   <div>
     <h1>Loops — Team Performance Dashboard</h1>
-    <div class="sub">YTD FY25/27 · Apr–Sep 2026 (6 months P&amp;L · Sep Revenue not yet in summary) · Q1 (Apr–Jun) closed · Q2 (Jul–Sep) complete
-      <span class="pill">Team view · Revenue, Contribution & Sales activity</span>
+    <div class="sub">Live CRM Real-Time Financial Performance &bull; Real Deals &amp; Revenue from Kiwi CRM
+      <span class="pill">Live CRM Data &bull; Revenue, Contribution &amp; Sales activity</span>
     </div>
   </div>
   <div style="text-align:right">
     <div class="sub">Group Annual Target</div>
-    <div style="font-size:18px;font-weight:600">LKR 190,000,000</div>
+    <div style="font-size:18px;font-weight:600">LKR {{ number_format($dashboardData['group']['target_annual'] ?? 190000000) }}</div>
   </div>
 </header>
 
@@ -383,7 +383,7 @@
     <div class="card">
       <h3>YTD Contribution vs YTD Target (Apr–Sep)</h3>
       <div class="chart-wrap"><canvas id="chartContribTarget"></canvas></div>
-      <div class="note">YTD Target = annual ÷ 12 × 6 months. Group annual 190M · DM 105M · Creative 61.8M · IT 24M. Corporate has no formal contribution target. See the Quarterly Performance section below for Q1 (complete) vs Q2 (in-progress) detail.</div>
+      <div class="note">YTD Target is pro-rated to the selected period from live CRM department targets. Corporate has no formal contribution target.</div>
     </div>
   </div>
 
@@ -586,7 +586,7 @@
 </div>
 
 <footer>
-  Loops Team Performance Dashboard • Source: <em>Financial Performance — YTD 25/27.xlsx</em> • P&amp;L: April 2026 · Sales tracker: April–June 2026
+  Loops Team Performance Dashboard &bull; Live Real-Time Financial Performance &bull; Synced with Live CRM Database
 </footer>
 </div>
 @endsection
