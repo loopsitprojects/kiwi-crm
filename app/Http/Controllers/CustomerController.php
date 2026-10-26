@@ -38,7 +38,7 @@ class CustomerController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:customers,email',
+            'email' => 'required|email',
             'phone' => 'nullable|regex:/^[0-9\s\+\-\(\)]+$/|max:20',
             'address' => 'nullable|string',
             'billing_address' => 'nullable|string',
@@ -193,7 +193,7 @@ class CustomerController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:customers,email,' . $customer->id,
+            'email' => 'required|email',
             'phone' => 'nullable|regex:/^[0-9\s\+\-\(\)]+$/|max:20',
             'address' => 'nullable|string',
             'billing_address' => 'nullable|string',
