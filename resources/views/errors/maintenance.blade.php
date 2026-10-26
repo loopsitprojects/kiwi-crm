@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Maintenance - Creative Kiwi</title>
+    <title>System Maintenance - Loops Integrated</title>
     <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -13,7 +13,7 @@
         body { font-family: 'Inter', sans-serif; }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4 bg-fixed" style="background: linear-gradient(135deg, #14532d 0%, #15803d 35%, #65a30d 70%, #e28a34 100%);">
+<body class="min-h-screen flex items-center justify-center p-4 bg-fixed" style="background: linear-gradient(135deg, #ff0878 0%, #8035ca 35%, #0057be 70%, #2fc9c3 100%);">
     <!-- Animated background shapes for depth -->
     <div class="fixed inset-0 overflow-hidden pointer-events-none">
         <div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-white/10 blur-3xl animate-pulse"></div>
@@ -23,7 +23,7 @@
     <div class="bg-white/95 backdrop-blur-md p-10 rounded-2xl shadow-2xl w-full max-w-lg border border-white/20 transform transition-all duration-300 hover:shadow-white/10 text-center relative z-10">
         <div class="flex flex-col items-center mb-8">
             <div class="bg-white p-4 rounded-2xl shadow-sm mb-6">
-                <img src="{{ asset('images/logo_loops.png') }}" alt="Creative Kiwi" class="h-16 w-auto">
+                <img src="{{ asset('images/logo_loops.png') }}" alt="Loops Integrated" class="h-16 w-auto">
             </div>
             
             <div class="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center text-orange-500 mb-6 animate-bounce">
@@ -49,7 +49,7 @@
         </div>
 
         <div class="mt-8 text-center border-t border-gray-100 pt-6">
-            <p class="text-xs text-gray-400 font-medium uppercase tracking-widest">&copy; {{ date('Y') }} Creative Kiwi. All rights reserved.</p>
+            <p class="text-xs text-gray-400 font-medium uppercase tracking-widest">&copy; {{ date('Y') }} Loops Integrated. All rights reserved.</p>
         </div>
     </div>
 </body>

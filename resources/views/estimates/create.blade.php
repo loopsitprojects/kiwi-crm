@@ -75,6 +75,27 @@
                     
                     <!-- Section: Client Details -->
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        @php
+                            $dealCustomer = isset($deal) ? ($deal->customer ?? \App\Models\Customer::find($deal->customer_id)) : null;
+                            $dealBrand = $dealCustomer ? trim($dealCustomer->brand ?? '', " .\t\n\r\0\x0B") : null;
+                            if (!$dealBrand && isset($deal)) {
+                                $dealBrand = $deal->customer_name ?: ($dealCustomer->name ?? null);
+                            }
+                            $dealAttention = $dealCustomer ? ($dealCustomer->primary_contact_name ?: $dealCustomer->name) : (isset($deal) ? $deal->customer_name : '');
+                            $dealDesignation = $dealCustomer ? ($dealCustomer->primary_contact_designation ?: '') : '';
+                            $dealAddr1 = '';
+                            $dealAddr2 = '';
+                            $dealAddr3 = '';
+                            if ($dealCustomer) {
+                                $dealRawAddr = $dealCustomer->billing_address ?: $dealCustomer->address;
+                                if ($dealRawAddr && $dealRawAddr !== 'TBD') {
+                                    $dLines = preg_split('/\r\n|\r|\n/', trim($dealRawAddr));
+                                    $dealAddr1 = $dLines[0] ?? '';
+                                    $dealAddr2 = $dLines[1] ?? '';
+                                    $dealAddr3 = $dLines[2] ?? '';
+                                }
+                            }
+                        @endphp
                         <div class="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
                             <h3 class="text-base font-semibold text-gray-800 uppercase tracking-wider text-xs">Client Details</h3>
                             <i class="fas fa-user-tie text-gray-400"></i>
@@ -83,12 +104,12 @@
                             <!-- Customer Select -->
                             <div class="grid grid-cols-12 gap-4 items-center">
                                 <label class="col-span-12 sm:col-span-3 text-right text-sm font-medium text-gray-600">Customer <span class="text-red-500">*</span></label>
-                                <div class="col-span-12 sm:col-span-9">
-                                    <select name="customer_id" required data-required="true"
+                                <div class="col-span-12 sm:col-span-9 customer-tom-select">
+                                    <select name="customer_id" id="customer_id_select" required data-required="true"
                                         class="w-full rounded-md border-gray-300 focus:border-brand-blue focus:ring-brand-blue sm:text-sm shadow-sm py-2">
                                         <option value="">-- Select Customer --</option>
                                         @foreach($customers as $customer)
-                                            <option value="{{ $customer->id }}" {{ (isset($deal) && $deal->customer_id == $customer->id) ? 'selected' : '' }}>{{ $customer->name }}</option>
+                                            <option value="{{ $customer->id }}" {{ (isset($deal) && ($deal->customer_id == $customer->id || $deal->customer_name == $customer->name)) ? 'selected' : '' }}>{{ $customer->name }}</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -102,16 +123,36 @@
                                         class="w-full rounded-md border-gray-300 focus:border-brand-blue focus:ring-brand-blue sm:text-sm shadow-sm py-2">
                                         <option value="">-- No Brand / Select Brand --</option>
                                         @foreach($brands as $brand)
-                                            <option value="{{ $brand }}">{{ $brand }}</option>
+                                            <option value="{{ $brand }}" {{ ($dealBrand == $brand) ? 'selected' : '' }}>{{ $brand }}</option>
                                         @endforeach
+                                        @if($dealBrand && !$brands->contains($dealBrand))
+                                            <option value="{{ $dealBrand }}" selected>{{ $dealBrand }}</option>
+                                        @endif
                                     </select>
                                 </div>
                             </div>
 
                             <style>
+                                .customer-tom-select .ts-wrapper .ts-control,
                                 .brand-name-tom-select .ts-wrapper .ts-control {
                                     border: none !important;
                                     box-shadow: none !important;
+                                    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e") !important;
+                                    background-position: right 0.75rem center !important;
+                                    background-repeat: no-repeat !important;
+                                    background-size: 1.1em 1.1em !important;
+                                    padding-right: 2.25rem !important;
+                                }
+                                .customer-tom-select .ts-wrapper.focus,
+                                .brand-name-tom-select .ts-wrapper.focus {
+                                    border-color: #0057be !important;
+                                    box-shadow: 0 0 0 1px #0057be !important;
+                                }
+                                .customer-tom-select .ts-dropdown,
+                                .brand-name-tom-select .ts-dropdown {
+                                    z-index: 50 !important;
+                                    border-radius: 0.375rem !important;
+                                    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
                                 }
                             </style>
 
@@ -119,7 +160,7 @@
                             <div class="grid grid-cols-12 gap-4 items-center">
                                 <label class="col-span-12 sm:col-span-3 text-right text-sm font-medium text-gray-600">Attention To <span class="text-red-500">*</span></label>
                                 <div class="col-span-12 sm:col-span-9">
-                                    <input type="text" name="attention_to" placeholder="E.g. Mr. John Doe" required data-required="true"
+                                    <input type="text" name="attention_to" value="{{ old('attention_to', $dealAttention) }}" placeholder="E.g. Mr. John Doe" required data-required="true"
                                         class="w-full rounded-md border-gray-300 focus:border-brand-blue focus:ring-brand-blue sm:text-sm shadow-sm py-2">
                                 </div>
                             </div>
@@ -128,7 +169,7 @@
                             <div class="grid grid-cols-12 gap-4 items-center">
                                 <label class="col-span-12 sm:col-span-3 text-right text-sm font-medium text-gray-600">Designation</label>
                                 <div class="col-span-12 sm:col-span-9">
-                                    <input type="text" name="designation" placeholder="E.g. Senior Manager"
+                                    <input type="text" name="designation" value="{{ old('designation', $dealDesignation) }}" placeholder="E.g. Senior Manager"
                                         class="w-full rounded-md border-gray-300 focus:border-brand-blue focus:ring-brand-blue sm:text-sm shadow-sm py-2">
                                 </div>
                             </div>
@@ -137,11 +178,11 @@
                             <div class="grid grid-cols-12 gap-4 items-start">
                                 <label class="col-span-12 sm:col-span-3 text-right text-sm font-medium text-gray-600 pt-2">Address</label>
                                 <div class="col-span-12 sm:col-span-9 space-y-2">
-                                    <input type="text" name="address_line_1" placeholder="Address Line 1"
+                                    <input type="text" name="address_line_1" value="{{ old('address_line_1', $dealAddr1) }}" placeholder="Address Line 1"
                                         class="w-full rounded-md border-gray-300 focus:border-brand-blue focus:ring-brand-blue sm:text-sm shadow-sm py-2">
-                                    <input type="text" name="address_line_2" placeholder="Address Line 2"
+                                    <input type="text" name="address_line_2" value="{{ old('address_line_2', $dealAddr2) }}" placeholder="Address Line 2"
                                         class="w-full rounded-md border-gray-300 focus:border-brand-blue focus:ring-brand-blue sm:text-sm shadow-sm py-2">
-                                    <input type="text" name="address_line_3" placeholder="Address Line 3"
+                                    <input type="text" name="address_line_3" value="{{ old('address_line_3', $dealAddr3) }}" placeholder="Address Line 3"
                                         class="w-full rounded-md border-gray-300 focus:border-brand-blue focus:ring-brand-blue sm:text-sm shadow-sm py-2">
                                 </div>
                             </div>
@@ -306,12 +347,12 @@
                                 <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Currency <span class="text-red-500">*</span></label>
                                 <select name="currency" required data-required="true"
                                     class="w-full rounded-md border-gray-300 focus:border-brand-blue focus:ring-brand-blue text-sm py-2">
-                                    <option value="" selected>Select Currency</option>
+                                    <option value="">Select Currency</option>
                                     @if($currencies->isEmpty())
-                                        <option value="LKR">LKR - Sri Lankan Rupee (Rs)</option>
+                                        <option value="LKR" {{ (!isset($deal) || $deal->currency == 'LKR') ? 'selected' : '' }}>LKR - Sri Lankan Rupee (Rs)</option>
                                     @else
                                         @foreach($currencies as $currency)
-                                            <option value="{{ $currency->code }}">
+                                            <option value="{{ $currency->code }}" {{ (isset($deal) && $deal->currency == $currency->code) || (!isset($deal) && $currency->code == 'LKR') ? 'selected' : '' }}>
                                                 {{ $currency->code }} - {{ $currency->name }} ({{ $currency->symbol }})
                                             </option>
                                         @endforeach
@@ -607,14 +648,13 @@
         }
 
 
-        function addItem() {
+        function addItem(desc = '', unitPrice = '', dept = '', revCat = '') {
             const tbody = document.getElementById('items-body');
             const rowCount = tbody.children.length;
             const row = document.createElement('tr');
             row.className = "group hover:bg-gray-50 transition-colors";
 
             const newIndex = new Date().getTime();
-            const editorId = `editor-${newIndex}`;
             const inputName = `items[${rowCount}][description]`;
 
             row.innerHTML = `
@@ -625,29 +665,29 @@
                     <div class="description-preview quill-content border border-gray-200 rounded p-2 text-xs text-gray-500 cursor-pointer hover:bg-gray-50 bg-white" 
                          style="min-height: 40px; max-height: 80px; overflow-y: auto;" 
                          onclick="openDescriptionModal(this)">
-                        <span class="text-gray-400 italic">Click to edit description...</span>
+                        ${desc ? desc : '<span class="text-gray-400 italic">Click to edit description...</span>'}
                     </div>
-                    <input type="hidden" name="${inputName}" class="description-hidden-input" required data-required="true">
+                    <input type="hidden" name="${inputName}" class="description-hidden-input" value="${desc ? desc.replace(/"/g, '&quot;') : ''}" required data-required="true">
                 </td>
                 <td class="p-2 align-top">
                     <select name="items[${rowCount}][department]" required data-required="true" class="w-full rounded-md border-gray-200 text-xs py-1 px-1">
                         <option value="">Select</option>
-                        <option value="creative">Creative</option>
-                        <option value="digital">Digital</option>
-                        <option value="play">Play</option>
-                        <option value="tech">Tech</option>
-                        <option value="PM">PM</option>
-                        <option value="Corporate">Corporate</option>
+                        <option value="creative" ${dept.toLowerCase() === 'creative' ? 'selected' : ''}>Creative</option>
+                        <option value="digital" ${dept.toLowerCase() === 'digital' ? 'selected' : ''}>Digital</option>
+                        <option value="play" ${dept.toLowerCase() === 'play' ? 'selected' : ''}>Play</option>
+                        <option value="tech" ${dept.toLowerCase() === 'tech' ? 'selected' : ''}>Tech</option>
+                        <option value="PM" ${dept.toLowerCase() === 'pm' ? 'selected' : ''}>PM</option>
+                        <option value="Corporate" ${dept.toLowerCase() === 'corporate' ? 'selected' : ''}>Corporate</option>
                     </select>
                 </td>
                 <td class="p-2 align-top">
                     <select name="items[${rowCount}][revenue_category]" required data-required="true" class="w-full rounded-md border-gray-200 text-xs py-1 px-1">
                         <option value="">Select</option>
-                        <option value="Retainer">Retainer</option>
-                        <option value="Ads">Ads</option>
-                        <option value="Campaigns/Projects">Campaigns/Projects</option>
-                        <option value="CAG">CAG</option>
-                        <option value="Corporate">Corporate</option>
+                        <option value="Retainer" ${revCat === 'Retainer' ? 'selected' : ''}>Retainer</option>
+                        <option value="Ads" ${revCat === 'Ads' ? 'selected' : ''}>Ads</option>
+                        <option value="Campaigns/Projects" ${revCat === 'Campaigns/Projects' ? 'selected' : ''}>Campaigns/Projects</option>
+                        <option value="CAG" ${revCat === 'CAG' ? 'selected' : ''}>CAG</option>
+                        <option value="Corporate" ${revCat === 'Corporate' ? 'selected' : ''}>Corporate</option>
                     </select>
                 </td>
                 <td class="p-2 align-top">
@@ -655,7 +695,7 @@
                     <input type="number" name="items[${rowCount}][quantity]" required data-required="true" value="1" placeholder="1" oninput="calculateRow(this)" class="w-full rounded-md border-gray-200 text-sm py-1 px-1 text-right">
                 </td>
                 <td class="p-2 align-top">
-                    <input type="number" step="0.01" name="items[${rowCount}][unit_price]" required data-required="true" value="" placeholder="0.00" oninput="calculateRow(this)" class="w-full rounded-md border-gray-200 text-sm py-1 px-1 text-right">
+                    <input type="number" step="0.01" name="items[${rowCount}][unit_price]" required data-required="true" value="${unitPrice !== '' ? unitPrice : ''}" placeholder="0.00" oninput="calculateRow(this)" class="w-full rounded-md border-gray-200 text-sm py-1 px-1 text-right">
                 </td>
                 <td class="p-2 align-top">
                     <input type="number" step="0.01" name="items[${rowCount}][amount]" placeholder="0.00" readonly class="w-full border-none bg-transparent text-sm py-1 px-1 text-right font-medium text-gray-700">
@@ -876,7 +916,11 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             initModalQuill();
-            addItem();
+            @if(isset($deal))
+                addItem({!! json_encode($deal->title) !!}, {{ (float)$deal->revenue }}, {!! json_encode($deal->owner->department ?? 'creative') !!}, 'Retainer');
+            @else
+                addItem();
+            @endif
             calculateTotals();
 
             Sortable.create(document.getElementById('items-body'), {
@@ -898,6 +942,17 @@
                 create: true
             });
 
+            const customerSelectInstance = new TomSelect('#customer_id_select', {
+                create: false,
+                allowEmptyOption: true,
+                placeholder: '-- Select Customer --',
+                render: {
+                    no_results: function(data, escape) {
+                        return '<div class="no-results p-3 text-center text-xs text-gray-500">No customer found matching "' + escape(data.input) + '"</div>';
+                    }
+                }
+            });
+
             const checkedProforma = document.querySelector('input[name="proforma_invoice"]:checked');
             if (checkedProforma) toggleProformaFields(checkedProforma.value);
 
@@ -907,66 +962,108 @@
             // Customer Data for auto-populating fields
             @php
                 $customersData = $customers->mapWithKeys(function($item) {
+                     $rawBrand = trim($item['brand'] ?? '', " .\t\n\r\0\x0B");
                      return [$item['id'] => [
-                         'brand' => $item['brand'],
-                         'attention' => $item['primary_contact_name'],
-                         'designation' => $item['primary_contact_designation'],
-                         'address' => $item['billing_address']
+                         'name' => $item['name'],
+                         'brand' => $rawBrand ?: $item['name'],
+                         'attention' => $item['primary_contact_name'] ?: $item['name'],
+                         'designation' => $item['primary_contact_designation'] ?: '',
+                         'address' => $item['billing_address'] ?: $item['address']
                      ]];
                  });
             @endphp
             const customersData = @json($customersData);
 
-            const customerSelect = document.querySelector('select[name="customer_id"]');
-            
-            if (customerSelect) {
-                customerSelect.addEventListener('change', function() {
-                    const customerId = this.value;
-                    const data = customersData[customerId];
-                    
-                    if (customerId && data) {
-                        // Fill Brand
-                        if (data.brand && brandSelectInstance) {
-                            brandSelectInstance.addOption({value: data.brand, text: data.brand});
-                            brandSelectInstance.setValue(data.brand);
-                        } else if (brandSelectInstance) {
-                            brandSelectInstance.clear();
-                        }
-
-                        // Fill Attention To
-                        const attentionInput = document.querySelector('input[name="attention_to"]');
-                        if (attentionInput) attentionInput.value = data.attention || '';
-
-                        // Fill Designation
-                        const designationInput = document.querySelector('input[name="designation"]');
-                        if (designationInput) designationInput.value = data.designation || '';
-
-                        // Fill Address
-                        if (data.address) {
-                            const lines = data.address.split(/\r?\n/);
-                            document.querySelector('input[name="address_line_1"]').value = lines[0] || '';
-                            document.querySelector('input[name="address_line_2"]').value = lines[1] || '';
-                            document.querySelector('input[name="address_line_3"]').value = lines[2] || '';
-                        } else {
-                            document.querySelector('input[name="address_line_1"]').value = '';
-                            document.querySelector('input[name="address_line_2"]').value = '';
-                            document.querySelector('input[name="address_line_3"]').value = '';
-                        }
-                    } else {
-                        if (brandSelectInstance) brandSelectInstance.clear();
-                        document.querySelector('input[name="attention_to"]').value = '';
-                        document.querySelector('input[name="designation"]').value = '';
-                        document.querySelector('input[name="address_line_1"]').value = '';
-                        document.querySelector('input[name="address_line_2"]').value = '';
-                        document.querySelector('input[name="address_line_3"]').value = '';
-                    }
-                });
+            function updateCustomerFields(customerId) {
+                const data = customersData[customerId];
                 
-                // Trigger change immediately in case a customer is pre-selected
-                if (customerSelect.value) {
-                    customerSelect.dispatchEvent(new Event('change'));
-                }
+                if (customerId && data) {
+                    // Fill Brand
+                    const brandVal = data.brand || data.name || '';
+                    if (brandVal && typeof brandSelectInstance !== 'undefined' && brandSelectInstance) {
+                        brandSelectInstance.addOption({value: brandVal, text: brandVal});
+                        brandSelectInstance.setValue(brandVal);
+                        if (brandSelectInstance.control) {
+                            brandSelectInstance.control.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+                        }
+                        if (brandSelectInstance.wrapper) {
+                            brandSelectInstance.wrapper.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+                        }
+                        const parent = brandSelectInstance.wrapper ? brandSelectInstance.wrapper.closest('div') : null;
+                        const err = parent ? parent.querySelector('.field-error') : null;
+                        if (err) err.remove();
+                    } else if (typeof brandSelectInstance !== 'undefined' && brandSelectInstance) {
+                        brandSelectInstance.clear();
+                    }
 
+                    // Fill Attention To
+                    const attentionInput = document.querySelector('input[name="attention_to"]');
+                    if (attentionInput) {
+                        attentionInput.value = data.attention || '';
+                        attentionInput.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+                        const p = attentionInput.closest('div');
+                        const err = p ? p.querySelector('.field-error') : null;
+                        if (err) err.remove();
+                    }
+
+                    // Fill Designation
+                    const designationInput = document.querySelector('input[name="designation"]');
+                    if (designationInput) designationInput.value = data.designation || '';
+
+                    // Fill Address
+                    if (data.address && data.address !== 'TBD') {
+                        const lines = data.address.split(/\r?\n/);
+                        const a1 = document.querySelector('input[name="address_line_1"]');
+                        const a2 = document.querySelector('input[name="address_line_2"]');
+                        const a3 = document.querySelector('input[name="address_line_3"]');
+                        if (a1) a1.value = lines[0] || '';
+                        if (a2) a2.value = lines[1] || '';
+                        if (a3) a3.value = lines[2] || '';
+                    } else {
+                        const a1 = document.querySelector('input[name="address_line_1"]');
+                        const a2 = document.querySelector('input[name="address_line_2"]');
+                        const a3 = document.querySelector('input[name="address_line_3"]');
+                        if (a1) a1.value = '';
+                        if (a2) a2.value = '';
+                        if (a3) a3.value = '';
+                    }
+                } else {
+                    if (typeof brandSelectInstance !== 'undefined' && brandSelectInstance) brandSelectInstance.clear();
+                    const attentionInput = document.querySelector('input[name="attention_to"]');
+                    if (attentionInput) attentionInput.value = '';
+                    const designationInput = document.querySelector('input[name="designation"]');
+                    if (designationInput) designationInput.value = '';
+                    const a1 = document.querySelector('input[name="address_line_1"]');
+                    const a2 = document.querySelector('input[name="address_line_2"]');
+                    const a3 = document.querySelector('input[name="address_line_3"]');
+                    if (a1) a1.value = '';
+                    if (a2) a2.value = '';
+                    if (a3) a3.value = '';
+                }
+            }
+
+            customerSelectInstance.on('change', function(customerId) {
+                if (customerId) {
+                    if (customerSelectInstance.control) {
+                        customerSelectInstance.control.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+                    }
+                    if (customerSelectInstance.wrapper) {
+                        customerSelectInstance.wrapper.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+                    }
+                    const parent = customerSelectInstance.wrapper ? customerSelectInstance.wrapper.closest('div') : null;
+                    const err = parent ? parent.querySelector('.field-error') : null;
+                    if (err) err.remove();
+                }
+                updateCustomerFields(customerId);
+            });
+
+            // Trigger immediately in case a customer is pre-selected
+            if (customerSelectInstance.getValue()) {
+                const currentAtt = document.querySelector('input[name="attention_to"]');
+                const currentBrand = typeof brandSelectInstance !== 'undefined' && brandSelectInstance ? brandSelectInstance.getValue() : '';
+                if (!currentBrand || !currentAtt || !currentAtt.value) {
+                    updateCustomerFields(customerSelectInstance.getValue());
+                }
             }
 
             // Custom Form Validation
@@ -1003,10 +1100,19 @@
                     let isValid = true;
                     let firstErrorField = null;
 
+                    // Check Customer Select (TomSelect)
+                    if (customerSelectInstance && !customerSelectInstance.getValue()) {
+                        isValid = false;
+                        const control = customerSelectInstance.wrapper || customerSelectInstance.control;
+                        control.classList.add('border-red-500', 'ring-1', 'ring-red-500');
+                        showError(control, 'Please select a customer');
+                        if (!firstErrorField) firstErrorField = control;
+                    }
+
                     // Check Brand Select (TomSelect)
                     if (brandSelectInstance && !brandSelectInstance.getValue()) {
                         isValid = false;
-                        const control = brandSelectInstance.control;
+                        const control = brandSelectInstance.wrapper || brandSelectInstance.control;
                         control.classList.add('border-red-500', 'ring-1', 'ring-red-500');
                         showError(control, 'Please select a brand');
                         if (!firstErrorField) firstErrorField = control;
@@ -1014,8 +1120,8 @@
 
                     // Check all data-required fields
                     this.querySelectorAll('[data-required="true"]').forEach(el => {
-                        // Skip if it's the hidden select for brandSelectInstance handled above
-                        if (el.id === 'brand_name_select') return;
+                        // Skip if it's the hidden select for brandSelectInstance or customerSelectInstance handled above
+                        if (el.id === 'brand_name_select' || el.id === 'customer_id_select') return;
 
                         let val = el.value;
                         // For Quill hidden fields, empty content might still have <p><br></p>

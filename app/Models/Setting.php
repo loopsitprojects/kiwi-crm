@@ -29,4 +29,14 @@ class Setting extends Model
             ['value' => $value, 'group' => $group]
         );
     }
+
+    /**
+     * Check if Halloween seasonal theme is enabled.
+     * Defaults to true (ON).
+     */
+    public static function isHalloweenTheme(): bool
+    {
+        $val = self::get('halloween_theme_enabled', true);
+        return filter_var($val, FILTER_VALIDATE_BOOLEAN);
+    }
 }

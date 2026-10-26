@@ -490,10 +490,43 @@ class DashboardController extends Controller
             }
         }
 
-        $sbuTarget = Target::where('type', 'department')->whereIn('department', $sbuDepts)->sum('target_amount');
-        $salesTarget = Target::where('type', 'department')->whereIn('department', $salesDepts)->sum('target_amount');
+        $targetYear = (int) date('Y');
+        if ($month !== 'all') {
+            $targetMonth = (int) $month;
+            $sbuTarget = collect($sbuDepts)->sum(fn($d) => Target::getDepartmentTarget($d, $targetYear, $targetMonth));
+            $salesTarget = collect($salesDepts)->sum(fn($d) => Target::getDepartmentTarget($d, $targetYear, $targetMonth));
+            $userTarget = Target::getUserTarget($user->id, $targetYear, $targetMonth);
 
-        $userTarget = Target::where('type', 'user')->where('user_id', $user->id)->value('target_amount') ?? 0;
+            $sbuTargetDepts = [];
+            foreach ($sbuDepts as $dept) {
+                $sbuTargetDepts[$dept] = Target::getDepartmentTarget($dept, $targetYear, $targetMonth);
+            }
+            $salesTargetDepts = [];
+            foreach ($salesDepts as $dept) {
+                $salesTargetDepts[$dept] = Target::getDepartmentTarget($dept, $targetYear, $targetMonth);
+            }
+        } else {
+            $sbuTarget = 0;
+            $salesTarget = 0;
+            $sbuTargetDepts = [];
+            $salesTargetDepts = [];
+            for ($m = 1; $m <= 12; $m++) {
+                foreach ($sbuDepts as $dept) {
+                    $amt = Target::getDepartmentTarget($dept, $targetYear, $m);
+                    $sbuTarget += $amt;
+                    $sbuTargetDepts[$dept] = ($sbuTargetDepts[$dept] ?? 0) + $amt;
+                }
+                foreach ($salesDepts as $dept) {
+                    $amt = Target::getDepartmentTarget($dept, $targetYear, $m);
+                    $salesTarget += $amt;
+                    $salesTargetDepts[$dept] = ($salesTargetDepts[$dept] ?? 0) + $amt;
+                }
+            }
+            $userTarget = 0;
+            for ($m = 1; $m <= 12; $m++) {
+                $userTarget += Target::getUserTarget($user->id, $targetYear, $m);
+            }
+        }
 
         // --- NEW: Manager & HOD Specific Metrics ---
         $pendingPayments = 0;
@@ -505,9 +538,14 @@ class DashboardController extends Controller
 
         if ($userRole === 'Manager' || $userRole === 'HOD') {
             if ($userDept) {
-                $deptTarget = Target::where('type', 'department')
-                    ->where('department', $userDept)
-                    ->sum('target_amount');
+                if ($month !== 'all') {
+                    $deptTarget = Target::getDepartmentTarget($userDept, $targetYear, (int) $month);
+                } else {
+                    $deptTarget = 0;
+                    for ($m = 1; $m <= 12; $m++) {
+                        $deptTarget += Target::getDepartmentTarget($userDept, $targetYear, $m);
+                    }
+                }
                 
                 // Calculate department actuals for the filtered month
                 foreach ($deals as $deal) {
@@ -549,6 +587,7 @@ class DashboardController extends Controller
             'brandContribution', 'revenueCategoryContribution', 'keyCampaigns',
             'sbuActual', 'salesActual', 'sbuTarget', 'salesTarget',
             'sbuDeptActuals', 'salesDeptActuals', 'userTarget',
+            'sbuTargetDepts', 'salesTargetDepts',
             'pendingPayments', 'ongoingDealsCount', 'ongoingDealsValue', 'dealsProgress',
             'deptTarget', 'deptActual', 'deals'
         ));

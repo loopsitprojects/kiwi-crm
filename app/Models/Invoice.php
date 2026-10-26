@@ -55,4 +55,44 @@ class Invoice extends Model
     {
         return $this->hasMany(InvoiceItem::class);
     }
+
+    public function payments()
+    {
+        return $this->hasMany(InvoicePayment::class)->orderBy('payment_date', 'asc')->orderBy('id', 'asc');
+    }
+
+    public function getTotalPaidAmountAttribute(): float
+    {
+        return (float) $this->payments->sum('amount');
+    }
+
+    public function getDueAmountAttribute(): float
+    {
+        $total = (float) $this->total_amount;
+        if ($this->payments->isNotEmpty()) {
+            $paid = (float) $this->payments->sum('amount');
+            return max(0.0, round($total - $paid, 2));
+        }
+
+        if ($this->status === 'paid') {
+            return 0.0;
+        }
+
+        return $total;
+    }
+
+    public function isFullyPaidThroughPartial(): bool
+    {
+        return $this->payments->isNotEmpty() && $this->total_paid_amount >= (float) $this->total_amount;
+    }
+
+    public function isPartiallyPaid(): bool
+    {
+        return $this->payments->isNotEmpty() && $this->total_paid_amount > 0 && $this->total_paid_amount < (float) $this->total_amount;
+    }
+
+    public function getCurrencyCodeAttribute(): string
+    {
+        return $this->currency ?: ($this->estimate->deal->currency ?? ($this->estimate->currency ?? 'LKR'));
+    }
 }

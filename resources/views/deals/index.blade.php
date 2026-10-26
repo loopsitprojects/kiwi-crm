@@ -29,9 +29,9 @@
         }
 
         .ts-wrapper.focus .ts-control {
-            border-color: #15803d !important;
+            border-color: #8035ca !important;
             /* brand-purple */
-            box-shadow: 0 0 0 2px rgba(21, 128, 61, 0.2) !important;
+            box-shadow: 0 0 0 2px rgba(128, 53, 202, 0.2) !important;
             outline: none !important;
         }
 
@@ -48,7 +48,7 @@
         }
 
         .ts-dropdown .active {
-            background-color: #15803d !important;
+            background-color: #8035ca !important;
             /* brand-purple */
             color: white !important;
         }
@@ -65,10 +65,8 @@
             display: none;
         }
 
-        /* Prevent FOUC: completely hide native multi-select elements before TomSelect initializes */
-        .filter-form select[multiple]:not(.tomselected),
-        #filter_user:not(.tomselected),
-        #filter_department:not(.tomselected) {
+        /* Prevent multi-select flashing (FOUC) while page is loading / before TomSelect initializes */
+        .filter-form select[multiple] {
             display: none !important;
         }
 
@@ -205,10 +203,59 @@
                     <span class="text-xs font-semibold opacity-75 mr-0.5">{{ $currency }}</span>{{ number_format($invoicedAmount, 2) }}
                 </p>
             </div>
-            <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
-                <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Payment Collected</h4>
+            <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200 relative" x-data="{ showOtherCurrencies: false }">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Payment Collected</h4>
+                    <div class="relative">
+                        <button type="button" 
+                            @click="showOtherCurrencies = !showOtherCurrencies"
+                            @click.outside="showOtherCurrencies = false"
+                            class="relative p-1 rounded-full transition-colors focus:outline-none flex items-center justify-center {{ !empty($otherCurrenciesPaymentCollected) ? 'text-brand-purple hover:bg-purple-50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100' }}"
+                            title="View other currencies total payment collected">
+                            <i class="fas fa-info-circle text-xs"></i>
+                            @if(!empty($otherCurrenciesPaymentCollected))
+                                <span class="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-purple opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-brand-purple"></span>
+                                </span>
+                            @endif
+                        </button>
+
+                        <!-- Popover -->
+                        <div x-show="showOtherCurrencies" 
+                            x-cloak 
+                            x-transition:enter="transition ease-out duration-150"
+                            x-transition:enter-start="opacity-0 translate-y-1 scale-95"
+                            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                            x-transition:leave="transition ease-in duration-100"
+                            x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+                            x-transition:leave-end="opacity-0 translate-y-1 scale-95"
+                            class="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-200 p-3.5 z-50 text-left">
+                            <div class="flex items-center justify-between border-b border-gray-100 pb-2 mb-2.5">
+                                <span class="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                                    <i class="fas fa-coins text-brand-purple"></i> Other Currencies
+                                </span>
+                                <button type="button" @click="showOtherCurrencies = false" class="text-gray-400 hover:text-gray-600 p-0.5">
+                                    <i class="fas fa-times text-xs"></i>
+                                </button>
+                            </div>
+                            @if(!empty($otherCurrenciesPaymentCollected))
+                                <div class="space-y-2">
+                                    @foreach($otherCurrenciesPaymentCollected as $currCode => $currAmount)
+                                        <div class="flex items-center justify-between bg-gray-50 hover:bg-gray-100/80 transition-colors py-1.5 px-2.5 rounded-lg border border-gray-100">
+                                            <span class="text-xs font-bold text-gray-700">{{ $currCode }}</span>
+                                            <span class="text-xs font-bold text-green-600">{{ number_format($currAmount, 2) }}</span>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @else
+                                <p class="text-xs text-gray-400 italic py-1 text-center">No collections in other currencies</p>
+                            @endif
+                        </div>
+                    </div>
+                </div>
                 <p class="text-lg 2xl:text-base font-bold text-green-600 mt-1 whitespace-nowrap">
-                    <span class="text-xs font-semibold opacity-75 mr-0.5">{{ $currency }}</span>{{ number_format($paymentCollected, 2) }}
+                    <span class="text-xs font-semibold opacity-75 mr-0.5">LKR</span>{{ number_format($paymentCollected, 2) }}
                 </p>
             </div>
         </div>
@@ -228,8 +275,6 @@
 
                 <!-- Filter Form -->
                 <form action="{{ route('deals.index') }}" method="GET" class="filter-form flex flex-wrap items-center gap-4 bg-gray-50 p-2 rounded-lg border border-gray-200">
-
-
                     <div class="flex items-center gap-2">
                         <label for="created_date_type" class="text-[10px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Deals Created Date:</label>
                         <select name="created_date_type" id="created_date_type" onchange="toggleCustomDateFields(this.value)"
@@ -279,7 +324,7 @@
                     <div class="flex items-center gap-2">
                         <label for="filter_user" class="text-[10px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">User:</label>
                         <div class="min-w-[150px]">
-                            <select name="filter_user[]" id="filter_user" multiple class="hidden" style="display: none;">
+                            <select name="filter_user[]" id="filter_user" multiple>
                                 @foreach($filterableUsers as $filterUser)
                                     <option value="{{ $filterUser->id }}" {{ is_array(request('filter_user')) && in_array($filterUser->id, request('filter_user')) ? 'selected' : (request('filter_user') == $filterUser->id ? 'selected' : '') }}>
                                         {{ $filterUser->name }}
@@ -295,7 +340,7 @@
                             @php
                                 $selectedDepts = (array)(request('filter_department') ?? request('department') ?? []);
                             @endphp
-                            <select name="filter_department[]" id="filter_department" multiple class="hidden" style="display: none;">
+                            <select name="filter_department[]" id="filter_department" multiple>
                                 @foreach($filterableDepartments as $dept)
                                     <option value="{{ $dept }}" {{ in_array($dept, $selectedDepts) ? 'selected' : '' }}>
                                         {{ $dept }}
@@ -305,20 +350,33 @@
                         </div>
                     </div>
 
+                    <!-- Search Input -->
                     <div class="flex items-center gap-2">
                         <label for="deal_search" class="text-[10px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Search:</label>
-                        <div class="relative min-w-[180px] sm:min-w-[210px]">
+                        <div class="relative">
                             <input type="text" name="search" id="deal_search" value="{{ request('search') }}"
                                 placeholder="Search deals, job #, brand..."
-                                class="w-full rounded-md border-gray-300 shadow-sm focus:border-brand-purple focus:ring-brand-purple text-xs py-1 pl-7 pr-7 border">
-                            <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px] pointer-events-none"></i>
-                            @if(request('search'))
-                                <button type="button" onclick="document.getElementById('deal_search').value=''; this.closest('form').submit();"
-                                    class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none" title="Clear search">
-                                    <i class="fas fa-times text-[10px]"></i>
-                                </button>
-                            @endif
+                                autocomplete="off"
+                                class="rounded-md border-gray-300 shadow-sm focus:border-brand-purple focus:ring-brand-purple text-xs py-1 pl-7 pr-6 border w-44 sm:w-56 bg-white">
+                            <div class="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none text-gray-400">
+                                <i class="fas fa-search text-[10px]"></i>
+                            </div>
+                            <button type="button" id="clear_deal_search"
+                                class="absolute inset-y-0 right-0 pr-2 flex items-center text-gray-400 hover:text-gray-600 transition-colors {{ request('search') ? '' : 'hidden' }}"
+                                title="Clear search">
+                                <i class="fas fa-times text-[10px]"></i>
+                            </button>
                         </div>
+                    </div>
+
+                    <!-- Own Deals Only Checkbox -->
+                    <div class="flex items-center">
+                        <label for="own_deals_only" class="inline-flex items-center gap-1.5 cursor-pointer select-none" title="Filter to show only your own deals">
+                            <input type="checkbox" name="own_deals_only" id="own_deals_only" value="1"
+                                {{ request('own_deals_only') == '1' || request('my_deals_only') == '1' ? 'checked' : '' }}
+                                class="rounded border-gray-300 text-brand-purple focus:ring-brand-purple h-4 w-4">
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Own Deals Only</span>
+                        </label>
                     </div>
 
                     <div class="flex items-center gap-1.5">
@@ -332,7 +390,8 @@
                                 (is_array(request('department')) ? !empty(array_filter(request('department'))) : request('department')) || 
                                 request('created_from') || request('created_to') || 
                                 request('expected_close_from') || request('expected_close_to') ||
-                                request('start_date') || request('close_date');
+                                request('start_date') || request('close_date') ||
+                                request('own_deals_only') || request('my_deals_only');
                         @endphp
                         @if($hasActiveFilters)
                             <a href="{{ route('deals.index') }}" class="px-3 py-1 bg-white border border-gray-300 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
@@ -341,65 +400,123 @@
                         @endif
                     </div>
                 </form>
+
                 <script>
                     (function() {
-                        function initFilterTomSelects() {
-                            if (typeof TomSelect === 'undefined') return false;
-                            var u = document.getElementById('filter_user');
-                            if (u && !u.tomselect) {
-                                new TomSelect(u, {
-                                    plugins: ['remove_button'],
-                                    placeholder: 'All Users',
-                                    create: false
-                                });
-                            }
-                            var d = document.getElementById('filter_department');
-                            if (d && !d.tomselect) {
-                                new TomSelect(d, {
-                                    plugins: ['remove_button'],
-                                    placeholder: 'All Departments',
-                                    create: false
-                                });
-                            }
-                            return true;
-                        }
-                        if (!initFilterTomSelects()) {
-                            document.addEventListener('DOMContentLoaded', initFilterTomSelects);
-                        }
-
-                        // Instant client-side card filtering while typing
-                        document.addEventListener('DOMContentLoaded', function() {
-                            var searchInput = document.getElementById('deal_search');
-                            if (!searchInput) return;
-
-                            var debounceTimer = null;
-                            searchInput.addEventListener('input', function() {
-                                clearTimeout(debounceTimer);
-                                debounceTimer = setTimeout(function() {
-                                    var query = searchInput.value.trim().toLowerCase();
-                                    var cols = document.querySelectorAll('.kanban-col');
-                                    cols.forEach(function(col) {
-                                        var cards = col.querySelectorAll('[data-id]');
-                                        var visible = 0;
-                                        cards.forEach(function(card) {
-                                            if (!query) {
-                                                card.style.display = '';
-                                                visible++;
-                                            } else {
-                                                var text = card.textContent.toLowerCase();
-                                                if (text.includes(query)) {
-                                                    card.style.display = '';
-                                                    visible++;
-                                                } else {
-                                                    card.style.display = 'none';
-                                                }
-                                            }
-                                        });
-                                        var badge = col.closest('.w-80')?.querySelector('.p-3 span.rounded-full');
-                                        if (badge) badge.textContent = visible;
+                        function initFilterDropdowns() {
+                            if (typeof TomSelect !== 'undefined') {
+                                if (document.getElementById('filter_user') && !document.getElementById('filter_user').tomselect) {
+                                    const userTomSelect = new TomSelect('#filter_user', {
+                                        plugins: ['remove_button'],
+                                        placeholder: 'All Users',
+                                        create: false
                                     });
-                                }, 150);
+                                    userTomSelect.on('change', function(vals) {
+                                        if (vals && (Array.isArray(vals) ? vals.length > 0 : vals !== '')) {
+                                            const ownBox = document.getElementById('own_deals_only');
+                                            if (ownBox && ownBox.checked) {
+                                                ownBox.checked = false;
+                                            }
+                                        }
+                                    });
+                                }
+                                if (document.getElementById('filter_department') && !document.getElementById('filter_department').tomselect) {
+                                    new TomSelect('#filter_department', {
+                                        plugins: ['remove_button'],
+                                        placeholder: 'All Departments',
+                                        create: false
+                                    });
+                                }
+                            }
+
+                            const ownDealsCheckbox = document.getElementById('own_deals_only');
+                            if (ownDealsCheckbox && !ownDealsCheckbox.dataset.listenerAttached) {
+                                ownDealsCheckbox.dataset.listenerAttached = 'true';
+                                ownDealsCheckbox.addEventListener('change', function() {
+                                    if (this.checked) {
+                                        const userSelect = document.getElementById('filter_user');
+                                        if (userSelect && userSelect.tomselect) {
+                                            userSelect.tomselect.clear();
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                        initFilterDropdowns();
+                        document.addEventListener('DOMContentLoaded', initFilterDropdowns);
+
+                        // Real-time live search across Kanban cards
+                        const dealSearchInput = document.getElementById('deal_search');
+                        const clearDealSearchBtn = document.getElementById('clear_deal_search');
+
+                        function filterDealsLive() {
+                            if (!dealSearchInput) return;
+                            const query = dealSearchInput.value.trim().toLowerCase();
+                            const cleanQuery = query.replace(/[^a-z0-9]/gi, '');
+
+                            if (clearDealSearchBtn) {
+                                if (query.length > 0) {
+                                    clearDealSearchBtn.classList.remove('hidden');
+                                } else {
+                                    clearDealSearchBtn.classList.add('hidden');
+                                }
+                            }
+
+                            document.querySelectorAll('.deal-card').forEach(card => {
+                                const title = (card.getAttribute('data-deal-title') || '').toLowerCase();
+                                const jn = (card.getAttribute('data-deal-job-number') || '').toLowerCase();
+                                const cleanJn = jn.replace(/[^a-z0-9]/gi, '');
+                                const customer = (card.getAttribute('data-deal-customer') || '').toLowerCase();
+                                const owner = (card.getAttribute('data-deal-owner') || '').toLowerCase();
+                                const fullText = (card.textContent || '').toLowerCase();
+
+                                const isMatch = !query || 
+                                                title.includes(query) || 
+                                                jn.includes(query) || 
+                                                (cleanQuery.length > 0 && cleanJn.includes(cleanQuery)) ||
+                                                customer.includes(query) || 
+                                                owner.includes(query) ||
+                                                fullText.includes(query);
+
+                                card.style.display = isMatch ? '' : 'none';
                             });
+
+                            // Update stage counts
+                            document.querySelectorAll('.kanban-col').forEach(col => {
+                                const visibleCount = col.querySelectorAll('.deal-card:not([style*="display: none"])').length;
+                                const colWrapper = col.closest('.w-80');
+                                if (colWrapper) {
+                                    const badge = colWrapper.querySelector('.stage-count-badge');
+                                    if (badge) badge.textContent = visibleCount;
+                                }
+                            });
+                        }
+
+                        if (dealSearchInput) {
+                            dealSearchInput.addEventListener('input', filterDealsLive);
+                            dealSearchInput.addEventListener('keydown', function(e) {
+                                if (e.key === 'Escape') {
+                                    dealSearchInput.value = '';
+                                    filterDealsLive();
+                                }
+                            });
+                        }
+
+                        if (clearDealSearchBtn) {
+                            clearDealSearchBtn.addEventListener('click', function() {
+                                dealSearchInput.value = '';
+                                filterDealsLive();
+                                dealSearchInput.focus();
+                                if (new URLSearchParams(window.location.search).has('search')) {
+                                    dealSearchInput.closest('form').submit();
+                                }
+                            });
+                        }
+
+                        document.addEventListener('DOMContentLoaded', function() {
+                            if (dealSearchInput && dealSearchInput.value) {
+                                filterDealsLive();
+                            }
                         });
                     })();
                 </script>
@@ -421,7 +538,7 @@
                             <div class="p-3 bg-gray-200 rounded-t-lg border-b border-gray-300 flex justify-between items-center">
                                 <h3 class="font-bold text-gray-700 text-sm">{{ $stage }}</h3>
                                 <div class="flex flex-col items-end">
-                                    <span class="bg-gray-300 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1">
+                                    <span class="stage-count-badge bg-gray-300 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1">
                                         {{ $dealsByStage->get($stage, collect())->count() }}
                                     </span>
                                     <div class="text-[10px] font-black text-gray-500 whitespace-nowrap">
@@ -440,8 +557,12 @@
                                         $tempInvoice = $estimate ? $estimate->tempInvoice : null;
                                         $taxInvoice = $dealEstimates->flatMap->invoices->where('is_proforma', 0)->first();
                                     @endphp
-                                    <div class="bg-white p-3 rounded shadow-sm mb-3 @if($canEdit) cursor-move kanban-item @else cursor-default @endif hover:shadow-md transition-shadow border-l-4 @if($stage === 'Rejected') border-red-500 @elseif($stage === 'Closed Won') border-green-500 @else border-brand-blue @endif"
-                                        data-id="{{ $deal->id }}">
+                                    <div class="deal-card bg-white p-3 rounded shadow-sm mb-3 @if($canEdit) cursor-move kanban-item @else cursor-default @endif hover:shadow-md transition-shadow border-l-4 @if($stage === 'Rejected') border-red-500 @elseif($stage === 'Closed Won') border-green-500 @else border-brand-blue @endif"
+                                        data-id="{{ $deal->id }}"
+                                        data-deal-title="{{ strtolower($deal->title) }}"
+                                        data-deal-job-number="{{ strtolower($deal->job_number ?? '') }}"
+                                        data-deal-customer="{{ strtolower($deal->customer_name ?? $deal->customer->name ?? '') }}"
+                                        data-deal-owner="{{ strtolower($deal->owner->name ?? '') }}">
                                         <div class="flex justify-between items-start mb-1">
                                             <h4 class="font-bold text-gray-800 text-sm line-clamp-1 flex-1">{{ $deal->title }}</h4>
                                                 <div class="flex items-center gap-1.5 ml-2">
@@ -1167,18 +1288,24 @@
         }
 
         document.addEventListener('DOMContentLoaded', function () {
-            // Initialize TomSelect for User and Department filters if not already initialized
-            var filterUserEl = document.getElementById('filter_user');
-            if (filterUserEl && !filterUserEl.tomselect) {
-                new TomSelect(filterUserEl, {
+            // Initialize TomSelect for User and Department filters
+            if (document.getElementById('filter_user') && !document.getElementById('filter_user').tomselect) {
+                const fallbackUserTs = new TomSelect('#filter_user', {
                     plugins: ['remove_button'],
                     placeholder: 'All Users',
                     create: false
                 });
+                fallbackUserTs.on('change', function(vals) {
+                    if (vals && (Array.isArray(vals) ? vals.length > 0 : vals !== '')) {
+                        const ownBox = document.getElementById('own_deals_only');
+                        if (ownBox && ownBox.checked) {
+                            ownBox.checked = false;
+                        }
+                    }
+                });
             }
-            var filterDeptEl = document.getElementById('filter_department');
-            if (filterDeptEl && !filterDeptEl.tomselect) {
-                new TomSelect(filterDeptEl, {
+            if (document.getElementById('filter_department') && !document.getElementById('filter_department').tomselect) {
+                new TomSelect('#filter_department', {
                     plugins: ['remove_button'],
                     placeholder: 'All Departments',
                     create: false
@@ -1269,7 +1396,7 @@
                             title: 'Confirm Stage Change',
                             text: `Are you sure you want to move this deal to "${newStage}"?`,
                             showCancelButton: true,
-                            confirmButtonColor: '#15803d',
+                            confirmButtonColor: '#8035ca',
                             cancelButtonColor: '#d33',
                             confirmButtonText: 'Yes, move it!',
                             cancelButtonText: 'No, cancel'
@@ -1390,24 +1517,24 @@
                     });
 
                     if (totalRevPercent > 100.01) {
-                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Total Revenue Percentage cannot exceed 100% (Current: ' + totalRevPercent.toFixed(2) + '%)', confirmButtonColor: '#15803d' });
+                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Total Revenue Percentage cannot exceed 100% (Current: ' + totalRevPercent.toFixed(2) + '%)', confirmButtonColor: '#8035ca' });
                         e.preventDefault(); return false;
                     }
                     if (totalConPercent > 100.01) {
-                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Total Contribution Percentage cannot exceed 100% (Current: ' + totalConPercent.toFixed(2) + '%)', confirmButtonColor: '#15803d' });
+                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Total Contribution Percentage cannot exceed 100% (Current: ' + totalConPercent.toFixed(2) + '%)', confirmButtonColor: '#8035ca' });
                         e.preventDefault(); return false;
                     }
                     if (totalRevAmt > mainRev + 0.01) {
-                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Total split revenue (LKR ' + totalRevAmt.toLocaleString() + ') cannot exceed project revenue (LKR ' + mainRev.toLocaleString() + ')', confirmButtonColor: '#15803d' });
+                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Total split revenue (LKR ' + totalRevAmt.toLocaleString() + ') cannot exceed project revenue (LKR ' + mainRev.toLocaleString() + ')', confirmButtonColor: '#8035ca' });
                         e.preventDefault(); return false;
                     }
                                         if (totalConAmt > mainCon + 0.01) {
-                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Total split contribution (LKR ' + totalConAmt.toLocaleString() + ') cannot exceed total contribution (LKR ' + mainCon.toLocaleString() + ')', confirmButtonColor: '#15803d' });
+                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Total split contribution (LKR ' + totalConAmt.toLocaleString() + ') cannot exceed total contribution (LKR ' + mainCon.toLocaleString() + ')', confirmButtonColor: '#8035ca' });
                         e.preventDefault(); return false;
                     }
 
                     if (mainCon > mainRev + 0.01) {
-                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Project Contribution (LKR ' + mainCon.toLocaleString() + ') cannot exceed Project Revenue (LKR ' + mainRev.toLocaleString() + ')', confirmButtonColor: '#15803d' });
+                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Project Contribution (LKR ' + mainCon.toLocaleString() + ') cannot exceed Project Revenue (LKR ' + mainRev.toLocaleString() + ')', confirmButtonColor: '#8035ca' });
                         e.preventDefault(); return false;
                     }
                     rows.forEach((row, index) => {
@@ -1478,24 +1605,24 @@
                     });
 
                     if (totalRevPercent > 100.01) {
-                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Total Revenue Percentage cannot exceed 100% (Current: ' + totalRevPercent.toFixed(2) + '%)', confirmButtonColor: '#15803d' });
+                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Total Revenue Percentage cannot exceed 100% (Current: ' + totalRevPercent.toFixed(2) + '%)', confirmButtonColor: '#8035ca' });
                         e.preventDefault(); return false;
                     }
                     if (totalConPercent > 100.01) {
-                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Total Contribution Percentage cannot exceed 100% (Current: ' + totalConPercent.toFixed(2) + '%)', confirmButtonColor: '#15803d' });
+                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Total Contribution Percentage cannot exceed 100% (Current: ' + totalConPercent.toFixed(2) + '%)', confirmButtonColor: '#8035ca' });
                         e.preventDefault(); return false;
                     }
                     if (totalRevAmt > mainRev + 0.01) {
-                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Total split revenue (LKR ' + totalRevAmt.toLocaleString() + ') cannot exceed project revenue (LKR ' + mainRev.toLocaleString() + ')', confirmButtonColor: '#15803d' });
+                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Total split revenue (LKR ' + totalRevAmt.toLocaleString() + ') cannot exceed project revenue (LKR ' + mainRev.toLocaleString() + ')', confirmButtonColor: '#8035ca' });
                         e.preventDefault(); return false;
                     }
                                         if (totalConAmt > mainCon + 0.01) {
-                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Total split contribution (LKR ' + totalConAmt.toLocaleString() + ') cannot exceed total contribution (LKR ' + mainCon.toLocaleString() + ')', confirmButtonColor: '#15803d' });
+                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Total split contribution (LKR ' + totalConAmt.toLocaleString() + ') cannot exceed total contribution (LKR ' + mainCon.toLocaleString() + ')', confirmButtonColor: '#8035ca' });
                         e.preventDefault(); return false;
                     }
 
                     if (mainCon > mainRev + 0.01) {
-                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Project Contribution (LKR ' + mainCon.toLocaleString() + ') cannot exceed Project Revenue (LKR ' + mainRev.toLocaleString() + ')', confirmButtonColor: '#15803d' });
+                        Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Project Contribution (LKR ' + mainCon.toLocaleString() + ') cannot exceed Project Revenue (LKR ' + mainRev.toLocaleString() + ')', confirmButtonColor: '#8035ca' });
                         e.preventDefault(); return false;
                     }
                     rows.forEach((row, index) => {
@@ -1591,11 +1718,11 @@
 
                     if (e.target.classList.contains('department-rev-percentage') || e.target.classList.contains('department-rev-amount')) {
                         if (Math.round(currentRevP * 100) > 10000 || Math.round(currentRevA * 100) > Math.round(totalRev * 100) + 1) {
-                            Swal.fire({ icon: 'warning', title: 'Limit Exceeded', text: 'Total Revenue Split exceeds project total. Please adjust.', confirmButtonColor: '#15803d' });
+                            Swal.fire({ icon: 'warning', title: 'Limit Exceeded', text: 'Total Revenue Split exceeds project total. Please adjust.', confirmButtonColor: '#8035ca' });
                         }
                     } else if (e.target.classList.contains('department-con-percentage') || e.target.classList.contains('department-con-amount')) {
                          if (Math.round(currentConP * 100) > 10000 || Math.round(currentConA * 100) > Math.round(totalCon * 100) + 1) {
-                            Swal.fire({ icon: 'warning', title: 'Limit Exceeded', text: 'Total Contribution Split exceeds project total. Please adjust.', confirmButtonColor: '#15803d' });
+                            Swal.fire({ icon: 'warning', title: 'Limit Exceeded', text: 'Total Contribution Split exceeds project total. Please adjust.', confirmButtonColor: '#8035ca' });
                         }
                     }
                 });

@@ -88,7 +88,7 @@ class DealController extends Controller
         }
 
         // Group all deals by stage for display
-        $query = Deal::with(['customer', 'owner', 'teamMembers', 'estimates.invoices', 'estimates.tempInvoice', 'estimates.items'])->orderBy('updated_at', 'desc');
+        $query = Deal::with(['customer', 'owner', 'teamMembers', 'estimates.invoices.payments', 'estimates.tempInvoice', 'estimates.items'])->orderBy('updated_at', 'desc');
 
         // Search Filter (Title, Job Number, Customer, Owner)
         if ($request->filled('search')) {
@@ -99,6 +99,7 @@ class DealController extends Controller
                   ->orWhere('customer_name', 'like', "%{$search}%")
                   ->orWhereHas('customer', function ($cq) use ($search) {
                       $cq->where('name', 'like', "%{$search}%")
+                         ->orWhere('company_name', 'like', "%{$search}%")
                          ->orWhere('brand', 'like', "%{$search}%");
                   })
                   ->orWhereHas('owner', function ($oq) use ($search) {
@@ -203,8 +204,10 @@ class DealController extends Controller
             }
         }
 
-        // User filter
-        if ($request->has('filter_user')) {
+        // Own deals only filter
+        if ($request->boolean('own_deals_only') || $request->input('own_deals_only') == '1' || $request->input('my_deals_only') == '1') {
+            $query->where('user_id', $user->id);
+        } elseif ($request->has('filter_user')) {
             $filterUsers = array_filter((array)$request->input('filter_user'));
             if (!empty($filterUsers)) {
                 $query->whereIn('user_id', $filterUsers);
@@ -339,6 +342,8 @@ class DealController extends Controller
             $deptContribution = 0;
             $deptInvoiced = 0;
             $deptPaid = 0;
+            $deptPaidByCurrency = [];
+            $dealPaidByCurrency = $this->getDealInvoicePaidByCurrency($deal);
 
             if (!empty($activeDeptsForMetrics)) {
                 $splits = is_string($deal->department_split) ? json_decode($deal->department_split, true) : $deal->department_split;
@@ -374,8 +379,12 @@ class DealController extends Controller
                                 foreach ($estimate->invoices as $invoice) {
                                     if (!$invoice->is_proforma) {
                                         $totalInvoiced += $invoice->total_amount;
-                                        if ($invoice->status === 'paid') {
-                                            $totalPaid += $invoice->total_amount;
+                                        if ($invoice->payments->isNotEmpty()) {
+                                            $totalPaid += (float) $invoice->total_paid_amount;
+                                        } elseif ($invoice->status === 'paid') {
+                                            $totalPaid += (float) $invoice->total_amount;
+                                        } elseif ($invoice->status === 'partial') {
+                                            $totalPaid += (float) $invoice->total_paid_amount;
                                         }
                                     }
                                 }
@@ -385,6 +394,9 @@ class DealController extends Controller
                                 $ratio = $splitRev / $deal->revenue;
                                 $deptInvoiced += ($totalInvoiced * $ratio);
                                 $deptPaid += ($totalPaid * $ratio);
+                                foreach ($dealPaidByCurrency as $c => $amt) {
+                                    $deptPaidByCurrency[$c] = ($deptPaidByCurrency[$c] ?? 0.0) + ($amt * $ratio);
+                                }
                             }
                         }
                     }
@@ -412,8 +424,12 @@ class DealController extends Controller
                             foreach ($estimate->invoices as $invoice) {
                                 if (!$invoice->is_proforma) {
                                     $totalInvoiced += $invoice->total_amount;
-                                    if ($invoice->status === 'paid') {
-                                        $totalPaid += $invoice->total_amount;
+                                    if ($invoice->payments->isNotEmpty()) {
+                                        $totalPaid += (float) $invoice->total_paid_amount;
+                                    } elseif ($invoice->status === 'paid') {
+                                        $totalPaid += (float) $invoice->total_amount;
+                                    } elseif ($invoice->status === 'partial') {
+                                        $totalPaid += (float) $invoice->total_paid_amount;
                                     }
                                 }
                             }
@@ -421,6 +437,9 @@ class DealController extends Controller
                         if ($dealRev > 0) {
                             $deptInvoiced = $totalInvoiced * $dealRatio;
                             $deptPaid = $totalPaid * $dealRatio;
+                            foreach ($dealPaidByCurrency as $c => $amt) {
+                                $deptPaidByCurrency[$c] = ($deptPaidByCurrency[$c] ?? 0.0) + ($amt * $dealRatio);
+                            }
                         }
                     } elseif ($deal->owner && in_array(trim(strtolower($deal->owner->department ?? '')), $activeDeptsForMetrics)) {
                         $deptRevenue = $deal->revenue;
@@ -429,11 +448,18 @@ class DealController extends Controller
                             foreach ($estimate->invoices as $invoice) {
                                 if (!$invoice->is_proforma) {
                                     $deptInvoiced += $invoice->total_amount;
-                                    if ($invoice->status === 'paid') {
-                                        $deptPaid += $invoice->total_amount;
+                                    if ($invoice->payments->isNotEmpty()) {
+                                        $deptPaid += (float) $invoice->total_paid_amount;
+                                    } elseif ($invoice->status === 'paid') {
+                                        $deptPaid += (float) $invoice->total_amount;
+                                    } elseif ($invoice->status === 'partial') {
+                                        $deptPaid += (float) $invoice->total_paid_amount;
                                     }
                                 }
                             }
+                        }
+                        foreach ($dealPaidByCurrency as $c => $amt) {
+                            $deptPaidByCurrency[$c] = ($deptPaidByCurrency[$c] ?? 0.0) + $amt;
                         }
                     }
                 }
@@ -452,6 +478,7 @@ class DealController extends Controller
                     $deal->dept_share_contribution = $deptContribution;
                     $deal->dept_share_invoiced = $deptInvoiced;
                     $deal->dept_share_paid = $deptPaid;
+                    $deal->dept_share_paid_by_currency = $deptPaidByCurrency;
                 }
             }
         });
@@ -486,18 +513,16 @@ class DealController extends Controller
             }
             return $total;
         };
-        $getMetricPaid = function($deal) {
-            if (isset($deal->dept_share_paid)) {
-                return $deal->dept_share_paid;
+        $getMetricPaidByCurrency = function($deal) {
+            if (isset($deal->dept_share_paid_by_currency)) {
+                return $deal->dept_share_paid_by_currency;
             }
-            // If not HOD, calculate total paid for this deal
-            $total = 0;
-            foreach ($deal->estimates as $estimate) {
-                foreach ($estimate->invoices as $invoice) {
-                    if (!$invoice->is_proforma && $invoice->status === 'paid') $total += $invoice->total_amount;
-                }
-            }
-            return $total;
+            return $this->getDealInvoicePaidByCurrency($deal);
+        };
+
+        $getMetricPaid = function($deal) use ($getMetricPaidByCurrency) {
+            $paidMap = $getMetricPaidByCurrency($deal);
+            return $paidMap['LKR'] ?? 0.0;
         };
 
         // Calculate metrics
@@ -538,7 +563,22 @@ class DealController extends Controller
 
         // Invoiced Amount & Payment Collected
         $invoicedAmount = $allDeals->sum($getMetricInvoiced);
-        $paymentCollected = $allDeals->sum($getMetricPaid);
+
+        $paymentsCollectedByCurrency = [];
+        foreach ($allDeals as $deal) {
+            $dealPaidMap = $getMetricPaidByCurrency($deal);
+            foreach ($dealPaidMap as $currencyCode => $amt) {
+                if ($amt > 0) {
+                    $paymentsCollectedByCurrency[$currencyCode] = ($paymentsCollectedByCurrency[$currencyCode] ?? 0.0) + $amt;
+                }
+            }
+        }
+
+        $paymentCollected = $paymentsCollectedByCurrency['LKR'] ?? 0.0;
+        $otherCurrenciesPaymentCollected = collect($paymentsCollectedByCurrency)
+            ->except('LKR')
+            ->filter(fn($amount) => $amount > 0)
+            ->all();
 
         return view('deals.index', compact(
             'stages',
@@ -557,6 +597,7 @@ class DealController extends Controller
             'averageDealAge',
             'invoicedAmount',
             'paymentCollected',
+            'otherCurrenciesPaymentCollected',
             'usersByDepartment',
             'seniorManagers',
             'currentSupervisor',
@@ -588,7 +629,7 @@ class DealController extends Controller
         ]);
 
         $customer = \App\Models\Customer::find($validated['customer_id']);
-        $validated['customer_name'] = $customer->name;
+        $validated['customer_name'] = $customer?->name;
 
         $stageProbs = [
             'Planned to Meet' => 10,
@@ -604,61 +645,79 @@ class DealController extends Controller
         $validated['winning_percentage'] = $stageProbs[$validated['stage']] ?? 0;
         $validated['user_id'] = auth()->id();
 
-        $deal = Deal::create($validated);
+        $allocations = [];
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        try {
+            $deal = Deal::create($validated);
 
-        // Auto-generate Job Number if stage is 'Working on pitch' or subsequent stages and job_number is not set
-        $jobIdStages = Deal::JOB_STAGES;
-        if (in_array($deal->stage, $jobIdStages) && is_null($deal->job_number)) {
-            $year = date('Y');
-            $idPad = str_pad($deal->id, 4, '0', STR_PAD_LEFT);
-            $deal->update([
-                'job_number' => "LOOPS/{$year}/{$idPad}"
-            ]);
+            // Auto-generate Job Number if stage is 'Working on pitch' or subsequent stages and job_number is not set
+            $jobIdStages = Deal::JOB_STAGES;
+            if (in_array($deal->stage, $jobIdStages) && is_null($deal->job_number)) {
+                $year = date('Y');
+                $idPad = str_pad($deal->id, 4, '0', STR_PAD_LEFT);
+                $deal->update([
+                    'job_number' => "LOOPS/{$year}/{$idPad}"
+                ]);
+            }
+
+            // Handle department allocations
+            if ($request->has('department_allocations')) {
+                $allocations = collect($request->department_allocations)->map(function($alloc) {
+                    if (isset($alloc['department'])) {
+                        $alloc['department'] = trim($alloc['department']);
+                    }
+                    return $alloc;
+                })->toArray();
+                $deal->department_split = json_encode($allocations);
+                $deal->save();
+            }
+
+            if ($request->has('team_members')) {
+                $deal->teamMembers()->sync($request->team_members);
+            }
+
+            $this->logAction("Created deal: {$deal->title}", $deal);
+
+            \Illuminate\Support\Facades\DB::commit();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            \Illuminate\Support\Facades\Log::error('Failed to create deal: ' . $e->getMessage());
+            return back()->with('error', 'Failed to create deal: ' . $e->getMessage())->withInput();
         }
 
-        // Handle department allocations
-        if ($request->has('department_allocations')) {
-            $allocations = collect($request->department_allocations)->map(function($alloc) {
-                if (isset($alloc['department'])) {
-                    $alloc['department'] = trim($alloc['department']);
-                }
-                return $alloc;
-            })->toArray();
-            $deal->department_split = json_encode($allocations);
-            $deal->save();
-
-            // Notify users in these departments
-            foreach ($allocations as $alloc) {
-                $dept = $alloc['department'] ?? null;
-                if ($dept) {
-                    $deptUsers = \App\Models\User::where('department', $dept)->get();
-                    foreach ($deptUsers as $deptUser) {
-                        if ($deptUser->id !== auth()->id()) {
-                            $deptUser->notify(new \App\Notifications\DealAssignedNotification($deal, 'Project Split (Department: ' . $dept . ')', auth()->user()));
+        // Send notifications outside transaction
+        try {
+            if (!empty($allocations)) {
+                foreach ($allocations as $alloc) {
+                    $dept = $alloc['department'] ?? null;
+                    if ($dept) {
+                        $deptUsers = \App\Models\User::where('department', $dept)->get();
+                        foreach ($deptUsers as $deptUser) {
+                            if ($deptUser->id !== auth()->id()) {
+                                $deptUser->notify(new \App\Notifications\DealAssignedNotification($deal, 'Project Split (Department: ' . $dept . ')', auth()->user()));
+                            }
                         }
                     }
                 }
             }
-        }
 
-        if ($request->has('team_members')) {
-            $deal->teamMembers()->sync($request->team_members);
-            
-            $usersToNotify = \App\Models\User::whereIn('id', $request->team_members)->get();
-            foreach ($usersToNotify as $userToNotify) {
-                if ($userToNotify->id !== auth()->id()) {
-                    $userToNotify->notify(new \App\Notifications\DealAssignedNotification($deal, 'Team Member', auth()->user()));
+            if ($request->has('team_members')) {
+                $usersToNotify = \App\Models\User::whereIn('id', $request->team_members)->get();
+                foreach ($usersToNotify as $userToNotify) {
+                    if ($userToNotify->id !== auth()->id()) {
+                        $userToNotify->notify(new \App\Notifications\DealAssignedNotification($deal, 'Team Member', auth()->user()));
+                    }
                 }
             }
-        }
 
-        $this->logAction("Created deal: {$deal->title}", $deal);
-
-        if ($deal->senior_manager) {
-            $seniorManagerUser = \App\Models\User::where('name', $deal->senior_manager)->first();
-            if ($seniorManagerUser && $seniorManagerUser->id !== auth()->id()) {
-                $seniorManagerUser->notify(new \App\Notifications\DealAssignedNotification($deal, 'Deal Owner', auth()->user()));
+            if ($deal->senior_manager) {
+                $seniorManagerUser = \App\Models\User::where('name', $deal->senior_manager)->first();
+                if ($seniorManagerUser && $seniorManagerUser->id !== auth()->id()) {
+                    $seniorManagerUser->notify(new \App\Notifications\DealAssignedNotification($deal, 'Deal Owner', auth()->user()));
+                }
             }
+        } catch (\Throwable $ne) {
+            \Illuminate\Support\Facades\Log::warning('Deal creation notification warning: ' . $ne->getMessage());
         }
 
         return back()->with('success', 'Deal created successfully.');
@@ -720,55 +779,71 @@ class DealController extends Controller
 
         $oldStage = $deal->stage;
         $oldSeniorManager = $deal->senior_manager;
-        $deal->update($validated);
 
-        $this->approveDealEstimates($deal);
+        $newDepartments = [];
+        $newTeamMembers = [];
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        try {
+            $deal->update($validated);
+            $this->approveDealEstimates($deal);
 
-        // Handle department allocations
-        $oldDepartments = [];
-        if ($deal->department_split) {
-            $oldSplits = is_string($deal->department_split) ? json_decode($deal->department_split, true) : $deal->department_split;
-            $oldDepartments = collect($oldSplits)->pluck('department')->filter()->toArray();
+            // Handle department allocations
+            $oldDepartments = [];
+            if ($deal->department_split) {
+                $oldSplits = is_string($deal->department_split) ? json_decode($deal->department_split, true) : $deal->department_split;
+                $oldDepartments = collect($oldSplits)->pluck('department')->filter()->toArray();
+            }
+
+            if ($request->has('department_allocations')) {
+                $allocations = collect($request->department_allocations)->map(function($alloc) {
+                    if (isset($alloc['department'])) {
+                        $alloc['department'] = trim($alloc['department']);
+                    }
+                    return $alloc;
+                })->toArray();
+
+                $newDepartments = collect($allocations)->pluck('department')->filter()->diff($oldDepartments)->toArray();
+
+                $deal->department_split = json_encode($allocations);
+                $deal->save();
+            } elseif ($request->has('department_allocations_cleared')) {
+                $deal->department_split = null;
+                $deal->save();
+            }
+
+            if ($request->has('team_members')) {
+                $existingTeamMembers = $deal->teamMembers->pluck('id')->toArray();
+                $newTeamMembers = array_diff($request->team_members, $existingTeamMembers);
+
+                $teamData = [];
+                foreach ($request->team_members as $userId) {
+                    $costAllocation = $request->input("cost_allocation.{$userId}", 0);
+                    $teamData[$userId] = ['cost_allocation' => $costAllocation];
+                }
+                $deal->teamMembers()->sync($teamData);
+            }
+
+            $this->logAction("Updated deal: {$deal->title}", $deal);
+
+            \Illuminate\Support\Facades\DB::commit();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            \Illuminate\Support\Facades\Log::error('Failed to update deal: ' . $e->getMessage());
+            return back()->with('error', 'Failed to update deal: ' . $e->getMessage())->withInput();
         }
 
-        if ($request->has('department_allocations')) {
-            $allocations = collect($request->department_allocations)->map(function($alloc) {
-                if (isset($alloc['department'])) {
-                    $alloc['department'] = trim($alloc['department']);
-                }
-                return $alloc;
-            })->toArray();
-
-            $newDepartments = collect($allocations)->pluck('department')->filter()->diff($oldDepartments)->toArray();
-
-            $deal->department_split = json_encode($allocations);
-            $deal->save();
-
-            // Notify only newly added departments
-            foreach ($newDepartments as $dept) {
-                $deptUsers = \App\Models\User::where('department', $dept)->get();
-                foreach ($deptUsers as $deptUser) {
-                    if ($deptUser->id !== auth()->id()) {
-                        $deptUser->notify(new \App\Notifications\DealAssignedNotification($deal, 'Project Split (Department: ' . $dept . ')', auth()->user()));
+        // Send notifications outside transaction
+        try {
+            if (!empty($newDepartments)) {
+                foreach ($newDepartments as $dept) {
+                    $deptUsers = \App\Models\User::where('department', $dept)->get();
+                    foreach ($deptUsers as $deptUser) {
+                        if ($deptUser->id !== auth()->id()) {
+                            $deptUser->notify(new \App\Notifications\DealAssignedNotification($deal, 'Project Split (Department: ' . $dept . ')', auth()->user()));
+                        }
                     }
                 }
             }
-        } elseif ($request->has('department_allocations_cleared')) {
-            // Handle clearing if no allocations are sent but field was modified
-            $deal->department_split = null;
-            $deal->save();
-        }
-
-        if ($request->has('team_members')) {
-            $existingTeamMembers = $deal->teamMembers->pluck('id')->toArray();
-            $newTeamMembers = array_diff($request->team_members, $existingTeamMembers);
-
-            $teamData = [];
-            foreach ($request->team_members as $userId) {
-                $costAllocation = $request->input("cost_allocation.{$userId}", 0);
-                $teamData[$userId] = ['cost_allocation' => $costAllocation];
-            }
-            $deal->teamMembers()->sync($teamData);
 
             if (!empty($newTeamMembers)) {
                 $usersToNotify = \App\Models\User::whereIn('id', $newTeamMembers)->get();
@@ -778,21 +853,21 @@ class DealController extends Controller
                     }
                 }
             }
-        }
 
-        if ($deal->senior_manager && $deal->senior_manager !== $oldSeniorManager) {
-            $seniorManagerUser = \App\Models\User::where('name', $deal->senior_manager)->first();
-            if ($seniorManagerUser && $seniorManagerUser->id !== auth()->id()) {
-                $seniorManagerUser->notify(new \App\Notifications\DealAssignedNotification($deal, 'Deal Owner', auth()->user()));
+            if ($deal->senior_manager && $deal->senior_manager !== $oldSeniorManager) {
+                $seniorManagerUser = \App\Models\User::where('name', $deal->senior_manager)->first();
+                if ($seniorManagerUser && $seniorManagerUser->id !== auth()->id()) {
+                    $seniorManagerUser->notify(new \App\Notifications\DealAssignedNotification($deal, 'Deal Owner', auth()->user()));
+                }
             }
-        }
 
-        $this->logAction("Updated deal: {$deal->title}", $deal);
-        
-        if ($deal->stage !== $oldStage) {
-            $this->notifyStakeholders($deal, new \App\Notifications\DealStageChangedNotification($deal, $oldStage, $deal->stage, auth()->user()));
-        } else {
-            $this->notifyStakeholders($deal);
+            if ($deal->stage !== $oldStage) {
+                $this->notifyStakeholders($deal, new \App\Notifications\DealStageChangedNotification($deal, $oldStage, $deal->stage, auth()->user()));
+            } else {
+                $this->notifyStakeholders($deal);
+            }
+        } catch (\Throwable $ne) {
+            \Illuminate\Support\Facades\Log::warning('Deal update notification warning: ' . $ne->getMessage());
         }
 
         return back()->with('success', 'Deal updated successfully.');
@@ -922,29 +997,92 @@ class DealController extends Controller
     protected function createEstimateFromDeal(Deal $deal)
     {
         $customerId = $deal->customer_id;
+        $customer = null;
 
-        // Create Customer if not exists
-        if (!$customerId) {
+        if ($customerId) {
+            $customer = $deal->customer ?: Customer::find($customerId);
+        }
+
+        // If customer not found, attempt search by email or name/brand
+        if (!$customer) {
+            if (!empty($deal->customer_email)) {
+                $customer = Customer::where('email', $deal->customer_email)->first();
+            }
+            if (!$customer && !empty($deal->customer_name)) {
+                $customer = Customer::where('name', $deal->customer_name)
+                    ->orWhere('brand', $deal->customer_name)
+                    ->first();
+            }
+        }
+
+        // Create Customer if still not exists
+        if (!$customer) {
             $email = $deal->customer_email ?? ('client_' . Str::random(8) . '@example.com');
             $customer = Customer::create([
                 'name' => $deal->customer_name ?? 'Unknown Customer',
+                'brand' => $deal->customer_name ?? 'Unknown Brand',
                 'email' => $email,
                 'phone' => $deal->customer_phone,
                 'address' => 'TBD'
             ]);
-            $customerId = $customer->id;
+        }
+
+        $customerId = $customer->id;
+        if ($deal->customer_id !== $customerId) {
             $deal->update(['customer_id' => $customerId]);
+        }
+
+        // Determine brand name
+        $rawBrand = trim($customer->brand ?? '', " .\t\n\r\0\x0B");
+        $brandName = $rawBrand ?: ($deal->customer_name ?: $customer->name);
+
+        // Determine attention to and designation
+        $attentionTo = !empty(trim($customer->primary_contact_name ?? '')) 
+            ? trim($customer->primary_contact_name) 
+            : ($customer->name ?? null);
+
+        $designation = !empty(trim($customer->primary_contact_designation ?? '')) 
+            ? trim($customer->primary_contact_designation) 
+            : null;
+
+        // Parse address lines from billing_address or address
+        $rawAddress = $customer->billing_address ?: $customer->address;
+        $addressLine1 = null;
+        $addressLine2 = null;
+        $addressLine3 = null;
+        if ($rawAddress && $rawAddress !== 'TBD') {
+            $addressLines = preg_split('/\r\n|\r|\n/', trim($rawAddress));
+            $addressLine1 = $addressLines[0] ?? null;
+            $addressLine2 = $addressLines[1] ?? null;
+            $addressLine3 = $addressLines[2] ?? null;
+        }
+
+        // Determine department and revenue category for default item
+        $userDept = $deal->owner->department ?? 'creative';
+        $validDepts = ['creative', 'digital', 'play', 'tech', 'PM', 'Corporate'];
+        $itemDept = 'creative';
+        foreach ($validDepts as $dept) {
+            if (strcasecmp($dept, $userDept) === 0) {
+                $itemDept = $dept;
+                break;
+            }
         }
 
         $estimate = Estimate::create([
             'customer_id' => $customerId,
             'user_id' => $deal->user_id,
             'deal_id' => $deal->id,
+            'brand_name' => $brandName,
+            'attention_to' => $attentionTo,
+            'designation' => $designation,
+            'address_line_1' => $addressLine1,
+            'address_line_2' => $addressLine2,
+            'address_line_3' => $addressLine3,
             'reference_number' => Estimate::generateReferenceNumber(),
             'date' => now(),
             'status' => 'draft',
             'total_amount' => $deal->revenue,
-            'currency' => 'LKR',
+            'currency' => $deal->currency ?? 'LKR',
             'heading' => $deal->title,
             'senior_manager' => $deal->senior_manager ?? ($deal->owner->name ?? null),
             'terms' => Setting::get('standard_terms', null)
@@ -958,7 +1096,10 @@ class DealController extends Controller
             'amount' => $deal->revenue,
             'vat_amount' => 0,
             'total_with_vat' => $deal->revenue,
-            'sscl_amount' => 0
+            'sscl_amount' => 0,
+            'position' => 0,
+            'department' => $itemDept,
+            'revenue_category' => 'Retainer'
         ]);
 
         return $estimate;
@@ -1057,6 +1198,30 @@ class DealController extends Controller
                 }
             }
         }
+    }
+
+    public function getDealInvoicePaidByCurrency(Deal $deal): array
+    {
+        $paidByCurrency = [];
+        foreach ($deal->estimates as $estimate) {
+            foreach ($estimate->invoices as $invoice) {
+                if (!$invoice->is_proforma) {
+                    $curr = strtoupper(trim($invoice->currency ?: ($deal->currency ?: 'LKR')));
+                    $paid = 0.0;
+                    if ($invoice->payments->isNotEmpty()) {
+                        $paid = (float) $invoice->total_paid_amount;
+                    } elseif ($invoice->status === 'paid') {
+                        $paid = (float) $invoice->total_amount;
+                    } elseif ($invoice->status === 'partial') {
+                        $paid = (float) $invoice->total_paid_amount;
+                    }
+                    if ($paid > 0) {
+                        $paidByCurrency[$curr] = ($paidByCurrency[$curr] ?? 0.0) + $paid;
+                    }
+                }
+            }
+        }
+        return $paidByCurrency;
     }
 
 }

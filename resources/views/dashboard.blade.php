@@ -21,6 +21,27 @@
         --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
     }
 
+    @php
+        $isHalloween = \App\Models\Setting::isHalloweenTheme();
+    @endphp
+
+    @if($isHalloween)
+    .tab-btn.active {
+        color: #ea580c !important;
+        border-bottom-color: #ea580c !important;
+        background: #fff7ed !important;
+    }
+    .tab-btn:hover {
+        background: #fff7ed !important;
+        color: #ea580c !important;
+    }
+    .halloween-table th {
+        background-color: #f5f3ff !important;
+        color: #7b2cbf !important;
+        border-bottom: 2px solid #ddd6fe !important;
+    }
+    @endif
+
     body {
         background-color: var(--background);
         font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -30,8 +51,7 @@
     .dashboard-container {
         max-width: 1550px;
         margin: 0 auto;
-        padding: 24px;
-        min-height: 100vh;
+        min-height: 100%;
     }
 
     /* Glassmorphism Card Style */
@@ -228,11 +248,18 @@
 @endpush
 
 @section('content')
-<div class="dashboard-container relative">
-    
+@php
+    $isHalloween = \App\Models\Setting::isHalloweenTheme();
+@endphp
 
+<div class="dashboard-container relative">
     <div class="dashboard-tabs">
-        <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
+        <button class="tab-btn active" onclick="switchTab('overview')">
+            @if($isHalloween)
+                <span class="mr-1">🎃</span>
+            @endif
+            Overview
+        </button>
         @if(auth()->user()->hasRole('Super Admin'))
             <button class="tab-btn" onclick="switchTab('target-type')">Target Type</button>
         @endif
@@ -242,8 +269,14 @@
     <div id="overview-tab" class="tab-content transition-all duration-300">
         <!-- Filters & KPI Header -->
         <div class="flex flex-col xl:flex-row gap-6 mb-6 items-stretch">
-            <div class="flex-1 flex flex-col md:flex-row gap-4 items-center bg-white py-4 px-6 rounded-xl border border-slate-100 shadow-sm">
-                <form id="filterForm" action="{{ route('dashboard') }}" method="GET" class="filters-bar flex-1 mb-0 p-0 shadow-none border-none self-center h-full">
+            <div class="flex-1 relative overflow-hidden flex flex-col md:flex-row gap-4 items-center bg-white py-4 px-6 rounded-xl border {{ $isHalloween ? 'border-orange-200/80 shadow-[0_4px_20px_rgba(255,107,0,0.06)]' : 'border-slate-100 shadow-sm' }}">
+                @if($isHalloween)
+                <!-- Corner Spiderweb from reference image 2 -->
+                <img src="{{ asset('images/halloween/spiderweb.svg') }}" class="absolute top-0 right-0 w-24 h-24 opacity-35 pointer-events-none" alt="">
+                <!-- Bats in bottom right corner -->
+                <img src="{{ asset('images/halloween/bats.svg') }}" class="absolute bottom-3 right-6 w-14 h-7 opacity-35 pointer-events-none" alt="">
+                @endif
+                <form id="filterForm" action="{{ route('dashboard') }}" method="GET" class="filters-bar flex-1 mb-0 p-0 shadow-none border-none self-center h-full relative z-10">
                 <div class="filter-group">
                     <label class="filter-label">Month</label>
                     <select name="month" class="filter-select" onchange="this.form.submit()">
@@ -322,8 +355,8 @@
             </form>
 
             <a href="{{ route('dashboard.export', request()->all()) }}" 
-               class="btn bg-slate-900 hover:bg-black text-white px-5 py-2.5 rounded-lg font-bold text-xs flex items-center gap-2 transition-all shadow-sm shrink-0">
-                <i class="fas fa-file-csv text-slate-400"></i>
+               class="btn {{ $isHalloween ? 'bg-[#12081d] hover:bg-[#1f0d33] text-orange-100 border border-orange-500/20' : 'bg-slate-900 hover:bg-black text-white' }} px-5 py-2.5 rounded-lg font-bold text-xs flex items-center gap-2 transition-all shadow-sm shrink-0 relative z-10">
+                <i class="fas fa-file-csv {{ $isHalloween ? 'text-orange-400' : 'text-slate-400' }}"></i>
                 Export CSV
             </a>
         </div>
@@ -415,6 +448,32 @@
                 </div>
             </div>
             @else
+            @if($isHalloween)
+            <div class="flex flex-row gap-6 w-full xl:w-auto shrink-0 self-stretch">
+                <div class="relative overflow-hidden flex flex-col justify-center items-center px-8 py-5 rounded-[16px] shadow-[0_10px_30px_rgba(20,5,30,0.4)] min-w-[280px] min-h-[155px] h-full border border-purple-900/40"
+                     style="background: url('{{ asset('images/halloween/card-contribution-bg.jpg') }}?v={{ file_exists(public_path('images/halloween/card-contribution-bg.jpg')) ? filemtime(public_path('images/halloween/card-contribution-bg.jpg')) : time() }}') center / cover no-repeat;">
+                    
+                    <!-- Title -->
+                    <div class="relative z-10 text-[11px] font-extrabold text-[#f3a838] mb-1.5 uppercase tracking-[0.16em] flex items-center gap-1.5 drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
+                        <span>TOTAL CONTRIBUTION</span>
+                    </div>
+
+                    <!-- Glowing actual dynamic value -->
+                    <div class="relative z-10 text-[32px] font-black text-[#ff9e2c] flex items-baseline gap-1.5 leading-none my-1 drop-shadow-[0_2px_12px_rgba(255,158,44,0.7)]"
+                         title="{{ count($deals->pluck('currency')->unique()) === 1 ? $deals->first()->currency : 'LKR' }} {{ number_format($totalContribution, 2) }}">
+                        <span class="text-[#ffb755] text-[15px] font-bold">{{ count($deals->pluck('currency')->unique()) === 1 ? $deals->first()->currency : 'LKR' }}</span> 
+                        {{ number_format($totalContribution / 1000000, 2) }}M
+                    </div>
+
+                    <!-- Luminous neon orange wave -->
+                    <div class="relative z-10 w-32 my-1.5 pointer-events-none">
+                        <svg viewBox="0 0 120 18" class="w-full h-4.5 stroke-orange-500 fill-none" style="filter: drop-shadow(0 0 6px rgba(255,140,0,0.9));">
+                            <path d="M 5 9 Q 30 16, 60 9 T 115 9" stroke="#ff9000" stroke-width="2.5" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            @else
             <div class="flex flex-row gap-6 w-full xl:w-auto shrink-0 self-stretch">
                 <div class="flex flex-col justify-center items-center px-10 rounded-[12px] shadow-[0_4px_12px_rgba(0,0,0,0.1)] min-w-[250px] h-full" style="background-color: #2b3547;">
                     <div class="text-[10px] font-bold text-[#f8fafc] mb-1.5 uppercase tracking-[0.1em]">Total Contribution</div>
@@ -423,6 +482,7 @@
                     </div>
                 </div>
             </div>
+            @endif
         </div>
         @endif
 
@@ -500,26 +560,36 @@
         @else
         <!-- Top Charts Row -->
         <div class="grid grid-cols-2 gap-6 mb-6">
-            <div class="glass-card">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="chart-title mb-0"><i class="fas fa-users"></i> Account Manager Contribution</h3>
+            <div class="glass-card relative overflow-hidden">
+                @if($isHalloween)
+                <img src="{{ asset('images/halloween/pumpkin.svg') }}" class="absolute -bottom-3 -right-3 w-20 h-20 opacity-[0.06] pointer-events-none" alt="">
+                @endif
+                <div class="flex items-center justify-between mb-4 relative z-10">
+                    <h3 class="chart-title mb-0">
+                        <i class="fas fa-users {{ $isHalloween ? '!text-[#ff6f00]' : '' }}"></i> Account Manager Contribution
+                    </h3>
                     <button onclick="downloadChart('managerChart', 'Manager_Contribution')" class="text-slate-400 hover:text-primary transition-colors text-xs flex items-center gap-2">
                         <i class="fas fa-download"></i> Download
                     </button>
                 </div>
-                <div class="h-[300px]">
+                <div class="h-[300px] relative z-10">
                     <canvas id="managerChart"></canvas>
                 </div>
             </div>
 
-            <div class="glass-card">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="chart-title mb-0"><i class="fas fa-tag"></i> Top Brands Contribution</h3>
+            <div class="glass-card relative overflow-hidden">
+                @if($isHalloween)
+                <img src="{{ asset('images/halloween/pumpkin.svg') }}" class="absolute -bottom-3 -left-3 w-20 h-20 opacity-[0.06] pointer-events-none" alt="">
+                @endif
+                <div class="flex items-center justify-between mb-4 relative z-10">
+                    <h3 class="chart-title mb-0">
+                        <i class="fas fa-tag {{ $isHalloween ? '!text-[#ff6f00]' : '' }}"></i> Top Brands Contribution
+                    </h3>
                     <button onclick="downloadChart('brandChart', 'Brand_Contribution')" class="text-slate-400 hover:text-primary transition-colors text-xs flex items-center gap-2">
                         <i class="fas fa-download"></i> Download
                     </button>
                 </div>
-                <div class="h-[300px]">
+                <div class="h-[300px] relative z-10">
                     <canvas id="brandChart"></canvas>
                 </div>
             </div>
@@ -527,26 +597,36 @@
 
         <!-- Bottom Charts Row -->
         <div class="grid grid-cols-3 gap-6 mb-6">
-            <div class="glass-card">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="chart-title mb-0"><i class="fas fa-building"></i> Department Split</h3>
+            <div class="glass-card relative overflow-hidden">
+                @if($isHalloween)
+                <img src="{{ asset('images/halloween/pumpkin.svg') }}" class="absolute -bottom-3 -right-3 w-20 h-20 opacity-[0.06] pointer-events-none" alt="">
+                @endif
+                <div class="flex items-center justify-between mb-4 relative z-10">
+                    <h3 class="chart-title mb-0">
+                        <i class="fas fa-building {{ $isHalloween ? '!text-[#ff6f00]' : '' }}"></i> Department Split
+                    </h3>
                     <button onclick="downloadChart('deptChart', 'Department_Split')" class="text-slate-400 hover:text-primary transition-colors text-xs flex items-center gap-2">
                         <i class="fas fa-download"></i> Download
                     </button>
                 </div>
-                <div class="h-[250px]">
+                <div class="h-[250px] relative z-10">
                     <canvas id="deptChart"></canvas>
                 </div>
             </div>
 
-            <div class="glass-card">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="chart-title mb-0"><i class="fas fa-chart-pie"></i> Revenue Categories</h3>
+            <div class="glass-card relative overflow-hidden">
+                @if($isHalloween)
+                <img src="{{ asset('images/halloween/spiderweb.svg') }}" class="absolute -top-3 -right-3 w-16 h-16 opacity-[0.08] pointer-events-none" alt="">
+                @endif
+                <div class="flex items-center justify-between mb-4 relative z-10">
+                    <h3 class="chart-title mb-0">
+                        <i class="fas fa-chart-pie {{ $isHalloween ? '!text-[#ff6f00]' : '' }}"></i> Revenue Categories
+                    </h3>
                     <button onclick="downloadChart('revenueChart', 'Revenue_Categories')" class="text-slate-400 hover:text-primary transition-colors text-xs flex items-center gap-2">
                         <i class="fas fa-download"></i> Download
                     </button>
                 </div>
-                <div class="flex flex-col h-full">
+                <div class="flex flex-col h-full relative z-10">
                     <div class="h-[200px] mb-4">
                         <canvas id="revenueChart"></canvas>
                     </div>
@@ -556,14 +636,19 @@
                 </div>
             </div>
 
-            <div class="glass-card flex flex-col">
-                <h3 class="chart-title"><i class="fas fa-trophy"></i> Key Campaigns</h3>
-                <div class="flex-1 overflow-y-auto">
-                    <table class="custom-table">
+            <div class="glass-card flex flex-col relative overflow-hidden">
+                @if($isHalloween)
+                <img src="{{ asset('images/halloween/bats.svg') }}" class="absolute top-2 right-4 w-12 h-6 opacity-20 pointer-events-none" alt="">
+                @endif
+                <h3 class="chart-title relative z-10">
+                    <i class="fas fa-trophy {{ $isHalloween ? '!text-[#ff6f00]' : '' }}"></i> Key Campaigns
+                </h3>
+                <div class="flex-1 overflow-y-auto relative z-10">
+                    <table class="custom-table {{ $isHalloween ? 'halloween-table' : '' }}">
                         <thead>
                             <tr>
-                                <th>Description</th>
-                                <th class="text-right">Contribution</th>
+                                <th class="{{ $isHalloween ? '!text-[#7b2cbf] !bg-purple-50/70' : '' }}">Description</th>
+                                <th class="text-right {{ $isHalloween ? '!text-[#7b2cbf] !bg-purple-50/70' : '' }}">Contribution</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -572,7 +657,7 @@
                                 <td class="truncate max-w-[150px]" title="{{ $campaign['description'] }}">
                                     {{ $campaign['description'] ?: 'Untitled' }}
                                 </td>
-                                <td class="text-right font-semibold">
+                                <td class="text-right font-bold {{ $isHalloween ? '!text-[#7b2cbf]' : '' }}">
                                     {{ number_format($campaign['contribution'] / 1000, 0) }}k
                                 </td>
                             </tr>
@@ -656,21 +741,25 @@
         window.dispatchEvent(new Event('resize'));
     }
 
+    const isHalloween = {{ $isHalloween ? 'true' : 'false' }};
+
     // Premium Color Palette
     const colors = {
-        primary: '#2563eb',
+        primary: isHalloween ? '#6320ee' : '#2563eb', // Vibrant purple for managers during Halloween
         secondary: '#64748b',
         success: '#10b981',
         warning: '#f59e0b',
         danger: '#ef4444',
         info: '#06b6d4',
-        violet: '#7c3aed',
+        violet: isHalloween ? '#ff6f00' : '#7c3aed', // Pumpkin orange for top brands during Halloween
         pink: '#db2777',
         orange: '#ea580c',
-        chart: [
-            '#2563eb', '#7c3aed', '#db2777', '#ea580c', '#16a34a', 
-            '#0891b2', '#4f46e5', '#9333ea', '#c026d3', '#e11d48'
-        ]
+        chart: isHalloween 
+            ? ['#ff6f00', '#7b2cbf', '#f72585', '#fb8500', '#9b5de5', '#ff9e2c', '#6320ee', '#ef4444']
+            : [
+                '#2563eb', '#7c3aed', '#db2777', '#ea580c', '#16a34a', 
+                '#0891b2', '#4f46e5', '#9333ea', '#c026d3', '#e11d48'
+            ]
     };
 
     // Common Chart Configuration
@@ -772,7 +861,7 @@
             labels: Object.keys(deptData),
             datasets: [{
                 data: Object.values(deptData),
-                backgroundColor: colors.chart[5],
+                backgroundColor: isHalloween ? '#ff6600' : colors.chart[5],
                 borderRadius: 8,
                 barThickness: 32,
             }]
@@ -891,8 +980,8 @@
 
     // 5. Target Chart (Actual vs Target Logic)
     let targetChart = null;
-    const sbuTargetDepts = {!! json_encode(\App\Models\Target::where('type', 'department')->whereIn('department', ['Creative', 'Digital', 'Tech', 'PM', 'Corporate'])->pluck('target_amount', 'department')) !!};
-    const salesTargetDepts = {!! json_encode(\App\Models\Target::where('type', 'department')->whereIn('department', ['AM', 'BD'])->pluck('target_amount', 'department')) !!};
+    const sbuTargetDepts = {!! json_encode($sbuTargetDepts ?? \App\Models\Target::where('type', 'department')->whereIn('department', ['Creative', 'Digital', 'Tech', 'PM', 'Corporate'])->pluck('target_amount', 'department')) !!};
+    const salesTargetDepts = {!! json_encode($salesTargetDepts ?? \App\Models\Target::where('type', 'department')->whereIn('department', ['AM', 'BD'])->pluck('target_amount', 'department')) !!};
 
     const targetData = {
         sbuActual: {{ $sbuActual }},

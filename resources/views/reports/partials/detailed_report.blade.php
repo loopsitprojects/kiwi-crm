@@ -145,7 +145,7 @@
                         $estimate = $deal->estimates->first() ?? null;
                         
                         $total = $invoice->total_amount ?? ($deal->revenue ?? 0);
-                        $balanceDue = ($invoice && ($invoice->status ?? '') === 'paid') ? 0 : $total;
+                        $balanceDue = ($invoice && ($invoice->status ?? '') === 'paid') ? 0 : (($invoice && ($invoice->status ?? '') === 'partial') ? $invoice->due_amount : $total);
                         $advanceStatus = ($estimate && ($estimate->advance_received_amount ?? 0) > 0) ? 'RECEIVED' : 'PENDING';
                     @endphp
                     <tr class="hover:bg-gray-50 transition-colors duration-150">
@@ -176,8 +176,12 @@
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap" data-col="payment_status">
-                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold {{ $invoice && ($invoice->status ?? '') === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800' }}">
-                                {{ strtoupper($invoice->status ?? 'pending') }}
+                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold 
+                                @if($invoice && ($invoice->status ?? '') === 'paid') bg-green-100 text-green-800
+                                @elseif($invoice && ($invoice->status ?? '') === 'partial') bg-blue-100 text-blue-800
+                                @else bg-yellow-100 text-yellow-800
+                                @endif">
+                                {{ $invoice && ($invoice->status ?? '') === 'partial' ? 'PARTIAL' : strtoupper($invoice->status ?? 'pending') }}
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-red-600" data-col="balance_due">{{ number_format($balanceDue, 2) }}</td>

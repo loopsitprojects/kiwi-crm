@@ -106,21 +106,44 @@
                             <td class="px-6 py-4 white-space-nowrap text-sm text-gray-900 font-bold">
                                 {{ $invoice->currency ?: ($invoice->estimate->deal->currency ?? ($invoice->estimate->currency ?? 'LKR')) }} {{ number_format($invoice->total_amount, 2) }}</td>
                             <td class="px-6 py-4 white-space-nowrap">
-                                <form action="{{ route('invoices.updateStatus', $invoice) }}" method="POST">
-                                    @csrf
-                                    <select name="status" onchange="this.form.submit()"
-                                        class="text-xs font-semibold rounded-full px-2 py-1 border-none focus:ring-0 cursor-pointer
-                                                                                                                                            @if($invoice->status == 'unpaid') bg-yellow-100 text-yellow-800
-                                                                                                                                            @elseif($invoice->status == 'paid') bg-green-100 text-green-800
-                                                                                                                                            @elseif($invoice->status == 'overdue') bg-red-100 text-red-800
-                                                                                                                                            @endif">
-                                        <option value="unpaid" {{ $invoice->status == 'unpaid' ? 'selected' : '' }}>Unpaid
-                                        </option>
-                                        <option value="paid" {{ $invoice->status == 'paid' ? 'selected' : '' }}>Paid</option>
-                                        <option value="overdue" {{ $invoice->status == 'overdue' ? 'selected' : '' }}>Overdue
-                                        </option>
-                                    </select>
-                                </form>
+                                @php
+                                    $hasPayments = $invoice->payments && $invoice->payments->isNotEmpty();
+                                    $isFullyPaidThroughPartial = $invoice->isFullyPaidThroughPartial();
+                                @endphp
+
+                                @if($isFullyPaidThroughPartial)
+                                    <span class="text-xs font-semibold rounded-full px-2.5 py-1 inline-flex items-center bg-green-100 text-green-800 shadow-sm">
+                                        Paid
+                                    </span>
+                                @elseif($hasPayments && $invoice->due_amount > 0)
+                                    <form action="{{ route('invoices.updateStatus', $invoice) }}" method="POST">
+                                        @csrf
+                                        <select name="status" onchange="this.form.submit()"
+                                            class="text-xs font-semibold rounded-full px-2 py-1 border-none focus:ring-0 cursor-pointer
+                                                @if($invoice->status == 'overdue') bg-red-100 text-red-800
+                                                @else bg-blue-100 text-blue-800
+                                                @endif">
+                                            <option value="partial" {{ in_array($invoice->status, ['partial', 'unpaid', 'paid']) ? 'selected' : '' }}>Partial Payment</option>
+                                            <option value="overdue" {{ $invoice->status == 'overdue' ? 'selected' : '' }}>Overdue</option>
+                                        </select>
+                                    </form>
+                                @else
+                                    <form action="{{ route('invoices.updateStatus', $invoice) }}" method="POST">
+                                        @csrf
+                                        <select name="status" onchange="this.form.submit()"
+                                            class="text-xs font-semibold rounded-full px-2 py-1 border-none focus:ring-0 cursor-pointer
+                                                @if($invoice->status == 'unpaid') bg-yellow-100 text-yellow-800
+                                                @elseif($invoice->status == 'paid') bg-green-100 text-green-800
+                                                @elseif($invoice->status == 'overdue') bg-red-100 text-red-800
+                                                @elseif($invoice->status == 'partial') bg-blue-100 text-blue-800
+                                                @endif">
+                                            <option value="unpaid" {{ $invoice->status == 'unpaid' ? 'selected' : '' }}>Unpaid</option>
+                                            <option value="partial" {{ $invoice->status == 'partial' ? 'selected' : '' }}>Partial Payment</option>
+                                            <option value="paid" {{ $invoice->status == 'paid' ? 'selected' : '' }}>Paid</option>
+                                            <option value="overdue" {{ $invoice->status == 'overdue' ? 'selected' : '' }}>Overdue</option>
+                                        </select>
+                                    </form>
+                                @endif
                             </td>
                             <td class="px-6 py-4 white-space-nowrap text-right text-sm font-medium flex justify-end space-x-2 items-center">
                                 @if($invoice->estimate && $invoice->estimate->thirdPartyCosts->count() > 0)

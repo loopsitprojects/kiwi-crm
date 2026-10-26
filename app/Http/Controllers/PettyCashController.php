@@ -200,78 +200,88 @@ class PettyCashController extends Controller
 
         $jobNumberString = $this->parseJobNumbers($request);
 
-        $pettyCash = PettyCashRequest::create([
-            'reference_number' => PettyCashRequest::generateReferenceNumber(),
-            'user_id' => $user->id,
-            'hod_id' => $hodId,
-            'department' => $user->department ?: 'General',
-            'job_number' => $jobNumberString,
-            'extra_notes' => $request->extra_notes,
-            'total_amount' => $totalAmount,
-            'approved_amount' => $totalAmount,
-            'is_iou' => $isIou,
-            'status' => $status,
-        ]);
-
-        // Save Items
-        foreach ($request->items as $itemData) {
-            $attendees = [];
-            if (!empty($itemData['attendees']) && is_array($itemData['attendees'])) {
-                $attendees = array_values(array_slice(array_filter(array_map('trim', $itemData['attendees']), fn($n) => $n !== ''), 0, 5));
-            }
-
-            PettyCashItem::create([
-                'petty_cash_request_id' => $pettyCash->id,
-                'expense_category_id' => !empty($itemData['expense_category_id']) ? $itemData['expense_category_id'] : null,
-                'amount' => $itemData['amount'],
-                'description' => $itemData['description'] ?? null,
-                'attendees' => !empty($attendees) ? $attendees : null,
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        try {
+            $pettyCash = PettyCashRequest::create([
+                'reference_number' => PettyCashRequest::generateReferenceNumber(),
+                'user_id' => $user->id,
+                'hod_id' => $hodId,
+                'department' => $user->department ?: 'General',
+                'job_number' => $jobNumberString,
+                'extra_notes' => $request->extra_notes,
+                'total_amount' => $totalAmount,
+                'approved_amount' => $totalAmount,
+                'is_iou' => $isIou,
+                'status' => $status,
             ]);
-        }
 
-        // Handle Proof File Uploads
-        if ($request->hasFile('proofs')) {
-            foreach ($request->file('proofs') as $file) {
-                $this->saveProofFile($file, $pettyCash->id);
-            }
-        }
+            // Save Items
+            foreach ($request->items as $itemData) {
+                $attendees = [];
+                if (!empty($itemData['attendees']) && is_array($itemData['attendees'])) {
+                    $attendees = array_values(array_slice(array_filter(array_map('trim', $itemData['attendees']), fn($n) => $n !== ''), 0, 5));
+                }
 
-        // If request is pending finance directly (e.g. HOD without assigned HOD)
-        if ($status === 'pending_super_admin') {
-            $superAdmins = PettyCashNotification::getSuperAdminRecipients($user->id);
-            if ($superAdmins->isNotEmpty()) {
-                Notification::send($superAdmins, new PettyCashNotification($pettyCash, 'submitted', $user));
-            }
-
-            if ($user) {
-                $user->notify(new PettyCashNotification($pettyCash, 'submitted', $user));
+                PettyCashItem::create([
+                    'petty_cash_request_id' => $pettyCash->id,
+                    'expense_category_id' => !empty($itemData['expense_category_id']) ? $itemData['expense_category_id'] : null,
+                    'amount' => $itemData['amount'],
+                    'description' => $itemData['description'] ?? null,
+                    'attendees' => !empty($attendees) ? $attendees : null,
+                ]);
             }
 
-            $msg = 'Petty Cash request submitted successfully and routed directly to Finance for approval (no HOD assigned).';
+            // Handle Proof File Uploads
+            if ($request->hasFile('proofs')) {
+                foreach ($request->file('proofs') as $file) {
+                    $this->saveProofFile($file, $pettyCash->id);
+                }
+            }
+
+            \Illuminate\Support\Facades\DB::commit();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            \Illuminate\Support\Facades\Log::error('Failed to submit petty cash request: ' . $e->getMessage());
+
             if ($request->ajax() || $request->wantsJson()) {
-                session()->flash('success', $msg);
-                return response()->json(['success' => true, 'message' => $msg]);
+                return response()->json(['success' => false, 'message' => 'Failed to submit request: ' . $e->getMessage()], 500);
             }
-            return redirect()->back()->with('success', $msg);
+            return redirect()->back()->with('error', 'Failed to submit petty cash request: ' . $e->getMessage())->withInput();
         }
 
-        // Request is pending_hod (for staff, or HOD with assigned HOD)
-        $hod = $resolvedHod ?? ($pettyCash->associated_hod ?? ($request->filled('hod_id') ? User::find($request->hod_id) : null));
-        if ($hod && $hod->id !== $user->id) {
-            $hod->notify(new PettyCashNotification($pettyCash, 'submitted', $user));
+        // Send notifications outside transaction
+        try {
+            if ($status === 'pending_super_admin') {
+                $superAdmins = PettyCashNotification::getSuperAdminRecipients($user->id);
+                if ($superAdmins->isNotEmpty()) {
+                    Notification::send($superAdmins, new PettyCashNotification($pettyCash, 'submitted', $user));
+                }
+
+                if ($user) {
+                    $user->notify(new PettyCashNotification($pettyCash, 'submitted', $user));
+                }
+            } else {
+                $hod = $resolvedHod ?? ($pettyCash->associated_hod ?? ($request->filled('hod_id') ? User::find($request->hod_id) : null));
+                if ($hod && $hod->id !== $user->id) {
+                    $hod->notify(new PettyCashNotification($pettyCash, 'submitted', $user));
+                }
+
+                if ($user) {
+                    $user->notify(new PettyCashNotification($pettyCash, 'submitted', $user));
+                }
+            }
+        } catch (\Throwable $ne) {
+            \Illuminate\Support\Facades\Log::warning('Petty cash notification warning: ' . $ne->getMessage());
         }
 
-        // Always notify requesting user
-        if ($user) {
-            $user->notify(new PettyCashNotification($pettyCash, 'submitted', $user));
+        if ($status === 'pending_super_admin') {
+            $msg = 'Petty Cash request submitted successfully and routed directly to Finance for approval (no HOD assigned).';
+        } else {
+            $hod = $resolvedHod ?? ($pettyCash->associated_hod ?? ($request->filled('hod_id') ? User::find($request->hod_id) : null));
+            $msg = ($isRequesterHod && $hod)
+                ? 'Petty Cash request submitted successfully and sent to your assigned HOD (' . $hod->name . ') for approval.'
+                : 'Petty Cash request submitted successfully and sent to HOD for approval.';
         }
-
-        // Note: Finance Admins are only notified when Finance approval is needed (i.e. status is pending_super_admin)
-
-
-        $msg = ($isRequesterHod && $hod)
-            ? 'Petty Cash request submitted successfully and sent to your assigned HOD (' . $hod->name . ') for approval.'
-            : 'Petty Cash request submitted successfully and sent to HOD for approval.';
 
         if ($request->ajax() || $request->wantsJson()) {
             session()->flash('success', $msg);
@@ -308,16 +318,10 @@ class PettyCashController extends Controller
 
             // Notify Staff & Super Admins upon HOD Approval of exceeded settlement
             $superAdmins = PettyCashNotification::getSuperAdminRecipients($pettyCash->user_id);
-            if ($superAdmins->isNotEmpty()) {
-                Notification::send($superAdmins, new PettyCashNotification($pettyCash, 'iou_settlement_hod_approved', $user));
-            }
+            $this->safeNotify($superAdmins, new PettyCashNotification($pettyCash, 'iou_settlement_hod_approved', $user), 'iou_settlement_hod_approved_super_admin');
 
             $requestedUser = User::find($pettyCash->user_id);
-            if ($requestedUser) {
-                $requestedUser->notify(new PettyCashNotification($pettyCash, 'iou_settlement_hod_approved', $user));
-            }
-
-
+            $this->safeNotify($requestedUser, new PettyCashNotification($pettyCash, 'iou_settlement_hod_approved', $user), 'iou_settlement_hod_approved_user');
 
             return redirect()->back()->with('success', 'Exceeded IOU settlement approved and forwarded to Finance for final approval.');
         }
@@ -328,14 +332,10 @@ class PettyCashController extends Controller
 
         // 2. Notify Staff & Super Admins upon HOD Approval
         $superAdmins = PettyCashNotification::getSuperAdminRecipients($pettyCash->user_id);
-        Notification::send($superAdmins, new PettyCashNotification($pettyCash, 'hod_approved', $user));
+        $this->safeNotify($superAdmins, new PettyCashNotification($pettyCash, 'hod_approved', $user), 'hod_approved_super_admin');
 
         $requestedUser = User::find($pettyCash->user_id);
-        if ($requestedUser) {
-            $requestedUser->notify(new PettyCashNotification($pettyCash, 'hod_approved', $user));
-        }
-
-
+        $this->safeNotify($requestedUser, new PettyCashNotification($pettyCash, 'hod_approved', $user), 'hod_approved_user');
 
         return redirect()->back()->with('success', 'Petty Cash request approved and forwarded to Finance.');
     }
@@ -360,9 +360,7 @@ class PettyCashController extends Controller
 
         // 4a. Notify Requested User and Super Admins upon HOD Rejection
         $requestedUser = User::find($pettyCash->user_id);
-        if ($requestedUser) {
-            $requestedUser->notify(new PettyCashNotification($pettyCash, 'hod_rejected', $user, $request->hod_rejection_note));
-        }
+        $this->safeNotify($requestedUser, new PettyCashNotification($pettyCash, 'hod_rejected', $user, $request->hod_rejection_note), 'hod_rejected_user');
 
 
         return redirect()->back()->with('success', 'Petty Cash request rejected. Staff has been notified.');
@@ -439,11 +437,9 @@ class PettyCashController extends Controller
         $pettyCash->update($updateData);
 
         // 3. Notify Staff, Associated HOD, and Super Admins upon Super Admin Approval (with PDF Voucher)
+        // 3. Notify Staff, Associated HOD, and Super Admins upon Super Admin Approval (with PDF Voucher)
         $requestedUser = User::find($pettyCash->user_id);
-        if ($requestedUser) {
-            $requestedUser->notify(new PettyCashNotification($pettyCash, 'admin_approved', $user));
-        }
-
+        $this->safeNotify($requestedUser, new PettyCashNotification($pettyCash, 'admin_approved', $user), 'admin_approved_user');
 
         $msg = $isIOU ? 'IOU Request APPROVED & Money Handed Over (Status: Unsettled IOU).' : 'Petty Cash request APPROVED successfully.';
         return redirect()->back()->with('success', $msg);
@@ -466,9 +462,7 @@ class PettyCashController extends Controller
         }
 
         $requestedUser = User::find($pettyCash->user_id);
-        if ($requestedUser) {
-            $requestedUser->notify(new PettyCashNotification($pettyCash, 'iou_reminder', $user));
-        }
+        $this->safeNotify($requestedUser, new PettyCashNotification($pettyCash, 'iou_reminder', $user), 'iou_reminder_user');
         return redirect()->back()->with('success', 'Reminder email to settle the IOU has been sent to ' . ($pettyCash->user->name ?? 'Staff') . '.');
     }
 
@@ -488,7 +482,7 @@ class PettyCashController extends Controller
             return redirect()->back()->with('error', 'Requesting staff user not found.');
         }
 
-        $requestedUser->notify(new PettyCashNotification($pettyCash, 'notify_sign_voucher', $user));
+        $this->safeNotify($requestedUser, new PettyCashNotification($pettyCash, 'notify_sign_voucher', $user), 'notify_sign_voucher_user');
 
         $msg = 'Notification email sent to ' . ($requestedUser->name ?? 'Staff') . ' to visit Finance and sign the voucher (' . $pettyCash->reference_number . ').';
         if ($request->ajax() || $request->wantsJson()) {
@@ -516,9 +510,7 @@ class PettyCashController extends Controller
 
         // 4b. Notify Staff, Associated HOD, and Super Admins upon Super Admin Rejection
         $requestedUser = User::find($pettyCash->user_id);
-        if ($requestedUser) {
-            $requestedUser->notify(new PettyCashNotification($pettyCash, 'admin_rejected', $user, $request->admin_rejection_note));
-        }
+        $this->safeNotify($requestedUser, new PettyCashNotification($pettyCash, 'admin_rejected', $user, $request->admin_rejection_note), 'admin_rejected_user');
         return redirect()->back()->with('success', 'Petty Cash request rejected by Finance. Staff has been notified.');
     }
 
@@ -543,17 +535,13 @@ class PettyCashController extends Controller
 
         // Dispatch notification and email to Management
         $managementRecipients = PettyCashNotification::getManagementRecipients($user->id);
-        if ($managementRecipients->isNotEmpty()) {
-            Notification::send($managementRecipients, new PettyCashNotification($pettyCash, 'sent_to_management', $user, $request->management_notes));
-        }
+        $this->safeNotify($managementRecipients, new PettyCashNotification($pettyCash, 'sent_to_management', $user, $request->management_notes), 'sent_to_management');
 
         // Also notify the requesting staff member so they are aware their request was escalated to Management
         $requestedUser = User::find($pettyCash->user_id);
         if ($requestedUser && $requestedUser->id !== $user->id) {
-            $requestedUser->notify(new PettyCashNotification($pettyCash, 'sent_to_management', $user, $request->management_notes));
+            $this->safeNotify($requestedUser, new PettyCashNotification($pettyCash, 'sent_to_management', $user, $request->management_notes), 'sent_to_management_user');
         }
-
-
 
         $recipientCount = $managementRecipients->count();
         $msg = "Petty Cash request #{$pettyCash->reference_number} was successfully forwarded to Management for approval.";
@@ -600,17 +588,13 @@ class PettyCashController extends Controller
 
         // Email & in-app notification to Finance Admin (Super Admin)
         $superAdmins = PettyCashNotification::getSuperAdminRecipients();
-        if ($superAdmins->isNotEmpty()) {
-            Notification::send($superAdmins, new PettyCashNotification($pettyCash, 'management_approved', $user, $notesVal));
-        }
+        $this->safeNotify($superAdmins, new PettyCashNotification($pettyCash, 'management_approved', $user, $notesVal), 'management_approved_super_admin');
 
         // Also notify the requesting staff user
         $requestedUser = User::find($pettyCash->user_id);
         if ($requestedUser && $requestedUser->id !== $user->id) {
-            $requestedUser->notify(new PettyCashNotification($pettyCash, 'management_approved', $user, $notesVal));
+            $this->safeNotify($requestedUser, new PettyCashNotification($pettyCash, 'management_approved', $user, $notesVal), 'management_approved_user');
         }
-
-
 
         return redirect()->back()->with('success', "Petty Cash request #{$pettyCash->reference_number} was APPROVED by Management. Finance Admin has been notified by email to approve and disburse funds.");
     }
@@ -639,9 +623,7 @@ class PettyCashController extends Controller
 
         // Notify Staff
         $requestedUser = User::find($pettyCash->user_id);
-        if ($requestedUser) {
-            $requestedUser->notify(new PettyCashNotification($pettyCash, 'management_rejected', $user, $request->management_rejection_note));
-        }
+        $this->safeNotify($requestedUser, new PettyCashNotification($pettyCash, 'management_rejected', $user, $request->management_rejection_note), 'management_rejected_user');
 
         return redirect()->back()->with('success', "Petty Cash request #{$pettyCash->reference_number} was REJECTED by Management. Staff has been notified.");
     }
@@ -734,21 +716,17 @@ class PettyCashController extends Controller
                 // 1. Notify HOD for approval (approval needed from HOD)
                 $associatedHod = $pettyCash->associated_hod;
                 if ($associatedHod && $associatedHod->id !== $user->id) {
-                    $associatedHod->notify(new PettyCashNotification($pettyCash, 'iou_settlement_exceeded', $user));
+                    $this->safeNotify($associatedHod, new PettyCashNotification($pettyCash, 'iou_settlement_exceeded', $user), 'iou_settlement_exceeded_hod');
                 }
             } else {
                 // Routed directly to Finance (approval needed from Finance)
                 $superAdmins = PettyCashNotification::getSuperAdminRecipients($user->id);
-                if ($superAdmins->isNotEmpty()) {
-                    Notification::send($superAdmins, new PettyCashNotification($pettyCash, 'iou_settlement_exceeded', $user));
-                }
+                $this->safeNotify($superAdmins, new PettyCashNotification($pettyCash, 'iou_settlement_exceeded', $user), 'iou_settlement_exceeded_super_admin');
             }
 
             // 2. Notify Requester / Staff member
             $requestedUser = User::find($pettyCash->user_id);
-            if ($requestedUser) {
-                $requestedUser->notify(new PettyCashNotification($pettyCash, 'iou_settlement_exceeded', $user));
-            }
+            $this->safeNotify($requestedUser, new PettyCashNotification($pettyCash, 'iou_settlement_exceeded', $user), 'iou_settlement_exceeded_user');
 
             $exceededAmount = round($settlementTotal - $approvedAmount, 2);
             $msg = $needsHodApproval 
@@ -765,11 +743,11 @@ class PettyCashController extends Controller
         // Standard settlement within or equal to approved amount
         // Notify Super Admins & Requested Staff User (pending Finance approval)
         $superAdmins = PettyCashNotification::getSuperAdminRecipients();
-        Notification::send($superAdmins, new PettyCashNotification($pettyCash, 'submitted', $user));
+        $this->safeNotify($superAdmins, new PettyCashNotification($pettyCash, 'submitted', $user), 'settle_submitted_super_admin');
 
         $requestedUser = User::find($pettyCash->user_id);
         if ($requestedUser && $requestedUser->id !== $user->id) {
-            $requestedUser->notify(new PettyCashNotification($pettyCash, 'submitted', $user));
+            $this->safeNotify($requestedUser, new PettyCashNotification($pettyCash, 'submitted', $user), 'settle_submitted_user');
         }
 
         $msg = 'IOU Settlement details and proofs submitted successfully. Pending Finance final approval.';
@@ -888,18 +866,17 @@ class PettyCashController extends Controller
         // Notify HOD or Super Admin based on new status
         if ($newStatus === 'pending_super_admin') {
             $superAdmins = PettyCashNotification::getSuperAdminRecipients($user ? $user->id : null);
-            Notification::send($superAdmins, new PettyCashNotification($pettyCash, 'reappealed', $user));
+            $this->safeNotify($superAdmins, new PettyCashNotification($pettyCash, 'reappealed', $user), 'reappealed_super_admin');
         } else {
             $hod = User::find($reappealHodId) ?? $pettyCash->associated_hod;
             if ($hod && $hod->id !== $user->id) {
-                $hod->notify(new PettyCashNotification($pettyCash, 'reappealed', $user));
+                $this->safeNotify($hod, new PettyCashNotification($pettyCash, 'reappealed', $user), 'reappealed_hod');
             }
-
         }
 
         $requestedUser = User::find($pettyCash->user_id);
         if ($requestedUser && $requestedUser->id !== $user->id) {
-            $requestedUser->notify(new PettyCashNotification($pettyCash, 'reappealed', $user));
+            $this->safeNotify($requestedUser, new PettyCashNotification($pettyCash, 'reappealed', $user), 'reappealed_user');
         }
 
         $msg = 'Petty Cash request re-appealed and resubmitted successfully.';
@@ -979,20 +956,27 @@ class PettyCashController extends Controller
 
         $destinationPath = public_path('uploads/petty_cash_proofs');
         if (!file_exists($destinationPath)) {
-            @mkdir($destinationPath, 0777, true);
+            @mkdir($destinationPath, 0755, true);
         }
-        $file->move($destinationPath, $filename);
+
+        try {
+            $file->move($destinationPath, $filename);
+        } catch (\Throwable $fe) {
+            \Illuminate\Support\Facades\Log::error('Proof file move failed: ' . $fe->getMessage());
+            throw new \RuntimeException('Failed to save uploaded proof file: ' . $origName);
+        }
+
         $filePath = 'uploads/petty_cash_proofs/' . $filename;
 
         // Mirror to alternative paths for shared hosting / LiteSpeed deployments
         $alt1 = base_path('public/uploads/petty_cash_proofs');
         if ($destinationPath !== $alt1 && !file_exists($alt1 . '/' . $filename)) {
-            @mkdir($alt1, 0777, true);
+            @mkdir($alt1, 0755, true);
             @copy($destinationPath . '/' . $filename, $alt1 . '/' . $filename);
         }
         $alt2 = base_path('uploads/petty_cash_proofs');
         if ($destinationPath !== $alt2 && !file_exists($alt2 . '/' . $filename)) {
-            @mkdir($alt2, 0777, true);
+            @mkdir($alt2, 0755, true);
             @copy($destinationPath . '/' . $filename, $alt2 . '/' . $filename);
         }
 
@@ -1164,4 +1148,34 @@ class PettyCashController extends Controller
         }
         return null;
     }
+
+    /**
+     * Safely dispatch a notification to single or multiple recipients without crashing the HTTP request if mail sending fails.
+     */
+    protected function safeNotify($recipients, $notification, string $actionContext = 'petty_cash_notification'): void
+    {
+        if (!$recipients) {
+            return;
+        }
+
+        try {
+            if ($recipients instanceof \Illuminate\Support\Collection || is_array($recipients)) {
+                if ($recipients instanceof \Illuminate\Support\Collection && $recipients->isEmpty()) {
+                    return;
+                }
+                Notification::send($recipients, $notification);
+            } else {
+                $recipients->notify($notification);
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Notification delivery notice [{$actionContext}]: " . $e->getMessage(), [
+                'exception' => $e,
+            ]);
+
+            if (!session()->has('warning')) {
+                session()->flash('warning', 'Notice: Action was saved, but email notification could not be delivered due to mail server issue.');
+            }
+        }
+    }
 }
+

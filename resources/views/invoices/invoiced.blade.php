@@ -128,6 +128,25 @@
 
                                 <span
                                     class="px-2 ml-3 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Invoiced</span>
+
+                                @if(auth()->user()->isITAdmin())
+                                    @php $linkedInvoice = $estimate->invoices->first(); @endphp
+                                    @if($linkedInvoice)
+                                        <button type="button"
+                                            onclick="openRevertInvoiceModal('{{ route('invoices.revert', $linkedInvoice) }}', '{{ $linkedInvoice->invoice_number }}', '{{ $estimate->reference_number }}')"
+                                            class="px-2.5 py-1 bg-amber-500 text-white rounded hover:bg-amber-600 text-xs shadow-sm font-semibold inline-flex items-center ml-2"
+                                            title="Revert Invoice (IT Admin only)">
+                                            <i class="fas fa-undo mr-1"></i> Revert
+                                        </button>
+                                    @else
+                                        <button type="button"
+                                            onclick="openRevertInvoiceModal('{{ route('estimates.revertInvoice', $estimate) }}', '{{ $estimate->reference_number }}', '{{ $estimate->reference_number }}')"
+                                            class="px-2.5 py-1 bg-amber-500 text-white rounded hover:bg-amber-600 text-xs shadow-sm font-semibold inline-flex items-center ml-2"
+                                            title="Revert Invoice (IT Admin only)">
+                                            <i class="fas fa-undo mr-1"></i> Revert
+                                        </button>
+                                    @endif
+                                @endif
                             </td>
                         </tr>
                     @empty

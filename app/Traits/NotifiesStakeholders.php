@@ -55,7 +55,11 @@ trait NotifiesStakeholders
         $notification = $notification ?? new DealUpdatedNotification($deal, $user);
 
         foreach ($stakeholders as $stakeholder) {
-            $stakeholder->notify($notification);
+            try {
+                $stakeholder->notify($notification);
+            } catch (\Throwable $e) {
+                Log::warning("Failed to notify stakeholder {$stakeholder->id} for deal {$deal->id}: " . $e->getMessage());
+            }
         }
     }
 }

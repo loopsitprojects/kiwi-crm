@@ -713,7 +713,7 @@
                     <!-- Initial Row -->
                     <div class="grid grid-cols-1 md:grid-cols-12 gap-2 items-center bg-gray-50 p-3 rounded-lg border border-gray-200 item-row">
                         <div class="col-span-1 md:col-span-4 category-col">
-                            <select name="items[0][expense_category_id]" required onchange="toggleDinnerAttendees(this)" class="w-full rounded-md border-gray-300 text-xs focus:ring-brand-blue item-cat-select">
+                            <select name="items[0][expense_category_id]" required onchange="toggleMealAllowanceAttendees(this)" class="w-full rounded-md border-gray-300 text-xs focus:ring-brand-blue item-cat-select">
                                 <option value="">Select Category *</option>
                                 @foreach($expenseCategories as $category)
                                     <option value="{{ $category->id }}">{{ $category->name }}</option>
@@ -734,7 +734,7 @@
                         <div class="attendees-container hidden col-span-1 md:col-span-12 mt-2 p-2.5 bg-blue-50/80 border border-blue-200 rounded-lg text-xs">
                             <div class="flex items-center justify-between mb-1.5">
                                 <span class="font-bold text-blue-900 flex items-center gap-1.5">
-                                    <i class="fas fa-utensils text-brand-blue"></i> Dinner Attendees / People Names (Max 5):
+                                    <i class="fas fa-utensils text-brand-blue"></i> Meal Allowance Attendees / People Names (Max 5):
                                 </span>
                                 <span class="text-[11px] text-blue-700">Enter names of people who attended</span>
                             </div>
@@ -1679,20 +1679,21 @@
 <script>
     const categoriesData = @json($expenseCategories);
 
-    function toggleDinnerAttendees(selectElem) {
+    function toggleMealAllowanceAttendees(selectElem) {
         const row = selectElem.closest('.grid');
         if (!row) return;
         const container = row.querySelector('.attendees-container');
         if (!container) return;
         
-        const selectedText = selectElem.options[selectElem.selectedIndex]?.text || '';
-        if (selectedText.toLowerCase().includes('dinner')) {
+        const selectedText = (selectElem.options[selectElem.selectedIndex]?.text || '').toLowerCase();
+        if (selectedText.includes('meal allowance') || selectedText.includes('meal') || selectedText.includes('dinner')) {
             container.classList.remove('hidden');
         } else {
             container.classList.add('hidden');
             container.querySelectorAll('input').forEach(i => i.value = '');
         }
     }
+    const toggleDinnerAttendees = toggleMealAllowanceAttendees;
 
     let isIouMode = false;
 
@@ -1847,7 +1848,7 @@
         row.className = 'grid grid-cols-1 md:grid-cols-12 gap-2 items-center bg-gray-50 p-3 rounded-lg border border-gray-200 item-row';
         row.innerHTML = `
             <div class="col-span-1 md:col-span-4 category-col">
-                <select name="items[${index}][expense_category_id]" required onchange="toggleDinnerAttendees(this)" class="w-full rounded-md border-gray-300 text-xs focus:ring-brand-blue item-cat-select">
+                <select name="items[${index}][expense_category_id]" required onchange="toggleMealAllowanceAttendees(this)" class="w-full rounded-md border-gray-300 text-xs focus:ring-brand-blue item-cat-select">
                     <option value="">Select Category *</option>
                     ${catOptions}
                 </select>
@@ -1866,7 +1867,7 @@
             <div class="attendees-container hidden col-span-1 md:col-span-12 mt-2 p-2.5 bg-blue-50/80 border border-blue-200 rounded-lg text-xs">
                 <div class="flex items-center justify-between mb-1.5">
                     <span class="font-bold text-blue-900 flex items-center gap-1.5">
-                        <i class="fas fa-utensils text-brand-blue"></i> Dinner Attendees / People Names (Max 5):
+                        <i class="fas fa-utensils text-brand-blue"></i> Meal Allowance Attendees / People Names (Max 5):
                     </span>
                     <span class="text-[11px] text-blue-700">Enter names of people who attended</span>
                 </div>

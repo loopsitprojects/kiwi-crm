@@ -42,37 +42,42 @@ class CheckPendingInvoices extends Command
         }
 
         foreach ($invoices as $invoice) {
-            $this->info("Processing Invoice #{$invoice->invoice_number}");
+            try {
+                $this->info("Processing Invoice #{$invoice->invoice_number}");
 
-            // target Users
-            $recipients = collect();
+                // target Users
+                $recipients = collect();
 
-            // 1. Finance Admin, Super Admin & IT Admin
-            $superAdmins = User::whereIn('role', ['Finance Admin', 'Super Admin', 'IT Admin'])->get();
-            $recipients = $recipients->merge($superAdmins);
+                // 1. Finance Admin, Super Admin & IT Admin
+                $superAdmins = User::whereIn('role', ['Finance Admin', 'Super Admin', 'IT Admin'])->get();
+                $recipients = $recipients->merge($superAdmins);
 
-            // 2. Management
-            $management = User::whereIn('role', ['Management', 'Manager'])->get();
-            $recipients = $recipients->merge($management);
+                // 2. Management
+                $management = User::whereIn('role', ['Management', 'Manager'])->get();
+                $recipients = $recipients->merge($management);
 
-            // 3. Project Members (Deal -> Team Members)
-            if ($invoice->estimate && $invoice->estimate->deal) {
-                $teamMembers = $invoice->estimate->deal->teamMembers;
-                $recipients = $recipients->merge($teamMembers);
+                // 3. Project Members (Deal -> Team Members)
+                if ($invoice->estimate && $invoice->estimate->deal) {
+                    $teamMembers = $invoice->estimate->deal->teamMembers;
+                    $recipients = $recipients->merge($teamMembers);
 
-                // Also the deal owner
-                if ($invoice->estimate->deal->user) {
-                    $recipients->push($invoice->estimate->deal->user);
+                    // Also the deal owner
+                    if ($invoice->estimate->deal->user) {
+                        $recipients->push($invoice->estimate->deal->user);
+                    }
                 }
+
+                // Unique users only to avoid duplicate emails
+                $recipients = $recipients->unique('id');
+
+                // Send Notification
+                Notification::send($recipients, new InvoiceStatusPendingNotification($invoice));
+            } catch (\Throwable $e) {
+                $this->error("Failed to notify for Invoice #{$invoice->invoice_number}: " . $e->getMessage());
+                \Illuminate\Support\Facades\Log::error("Invoice #{$invoice->invoice_number} reminder failed: " . $e->getMessage());
             }
-
-            // Unique users only to avoid duplicate emails
-            $recipients = $recipients->unique('id');
-
-            // Send Notification
-            Notification::send($recipients, new InvoiceStatusPendingNotification($invoice));
         }
 
-        $this->info('Notifications sent successfully.');
+        $this->info('Pending invoices check completed.');
     }
 }

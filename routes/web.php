@@ -15,14 +15,14 @@ use App\Http\Controllers\JobController;
 use App\Http\Controllers\PettyCashController;
 
 Route::get('login', [AuthController::class, 'showLogin'])->name('login');
-Route::post('login', [AuthController::class, 'login'])->name('login.post');
+Route::post('login', [AuthController::class, 'login'])->middleware('throttle:15,1')->name('login.post');
 Route::post('logout', [AuthController::class, 'logout'])->name('logout');
 
 // Password Reset Routes (Email OTP)
 Route::get('forgot-password', [AuthController::class, 'showForgotPassword'])->name('password.request');
-Route::post('forgot-password', [AuthController::class, 'sendOtp'])->name('password.email');
+Route::post('forgot-password', [AuthController::class, 'sendOtp'])->middleware('throttle:6,1')->name('password.email');
 Route::get('reset-password/otp', [AuthController::class, 'showOtpForm'])->name('password.otp');
-Route::post('reset-password/otp', [AuthController::class, 'resetPasswordWithOtp'])->name('password.update-otp');
+Route::post('reset-password/otp', [AuthController::class, 'resetPasswordWithOtp'])->middleware('throttle:10,1')->name('password.update-otp');
 
 // Dynamic PWA Manifest & Service Worker Routes for Hostinger / LiteSpeed
 Route::get('manifest.json', function () {
@@ -239,7 +239,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('invoices/rejected', [InvoiceController::class, 'rejected'])->name('invoices.rejected');
         Route::get('invoices/proforma', [InvoiceController::class, 'proforma'])->name('invoices.proforma');
         Route::post('invoices/{invoice}/status', [InvoiceController::class, 'updateStatus'])->name('invoices.updateStatus');
+        Route::get('invoices/{invoice}/payments', [InvoiceController::class, 'getPayments'])->name('invoices.payments.index');
+        Route::post('invoices/{invoice}/payments', [InvoiceController::class, 'storePayment'])->name('invoices.payments.store');
+        Route::delete('invoices/{invoice}/payments/{payment}', [InvoiceController::class, 'destroyPayment'])->name('invoices.payments.destroy');
         Route::post('invoices/{invoice}/duplicate', [InvoiceController::class, 'duplicate'])->name('invoices.duplicate');
+        Route::post('invoices/{invoice}/revert', [InvoiceController::class, 'revert'])->middleware('role:IT Admin')->name('invoices.revert');
+        Route::post('estimates/{estimate}/revert-invoice', [InvoiceController::class, 'revertEstimateInvoice'])->middleware('role:IT Admin')->name('estimates.revertInvoice');
         Route::resource('invoices', InvoiceController::class);
         Route::resource('temp-invoices', \App\Http\Controllers\TempInvoiceController::class)->only(['edit', 'update']);
         Route::post('temp-invoices/{tempInvoice}/revert', [InvoiceController::class, 'revertToPending'])->name('temp-invoices.revert');
@@ -262,6 +267,12 @@ Route::middleware(['auth'])->group(function () {
             Route::post('settings/tax', [SettingController::class, 'updateTax'])->name('settings.updateTax');
             Route::post('settings/department-targets', [SettingController::class, 'updateDepartmentTargets'])->name('settings.updateDepartmentTargets');
             Route::post('settings/user-targets', [SettingController::class, 'updateUserTargets'])->name('settings.updateUserTargets');
+            Route::post('settings/targets/periods', [SettingController::class, 'storeTargetPeriod'])->name('settings.storeTargetPeriod');
+            Route::delete('settings/targets/periods', [SettingController::class, 'destroyTargetPeriod'])->name('settings.destroyTargetPeriod');
+            Route::post('settings/targets/delete-period', [SettingController::class, 'deleteTargetPeriod'])->name('settings.deleteTargetPeriod');
+            Route::post('settings/targets/delete-single', [SettingController::class, 'deleteSingleTarget'])->name('settings.deleteSingleTarget');
+            Route::post('settings/targets/add-users', [SettingController::class, 'addUsersToTargetPeriod'])->name('settings.addUsersToTargetPeriod');
+            Route::post('settings/targets/add-departments', [SettingController::class, 'addDepartmentsToTargetPeriod'])->name('settings.addDepartmentsToTargetPeriod');
             Route::post('settings/maintenance', [SettingController::class, 'updateMaintenance'])->name('settings.updateMaintenance');
             Route::post('settings/notifications', [SettingController::class, 'updateNotifications'])->name('settings.updateNotifications');
             
@@ -293,6 +304,10 @@ Route::middleware(['auth'])->group(function () {
 
             // Financial Performance Permissions Setting
             Route::post('settings/financial-performance-permissions', [SettingController::class, 'updateFinancialPerformancePermissions'])->name('settings.updateFinancialPerformancePermissions');
+
+            // Seasonal Theme (Halloween) Settings
+            Route::post('settings/halloween-theme', [SettingController::class, 'updateHalloweenTheme'])->name('settings.halloween.update');
+            Route::post('settings/halloween-theme/toggle', [SettingController::class, 'toggleHalloweenTheme'])->name('settings.halloween.toggle');
         });
 
         // Financial Performance Dashboard (Access controlled dynamically by IT Admin settings)
@@ -382,14 +397,6 @@ Route::get('system-diagnose', function (\Illuminate\Http\Request $request) {
         $results['cache_clear'] = trim(\Illuminate\Support\Facades\Artisan::output());
     } catch (\Throwable $e) {
         $results['cache_clear_error'] = $e->getMessage();
-    }
-
-    // 2.5 Storage link
-    try {
-        \Illuminate\Support\Facades\Artisan::call('storage:link');
-        $results['storage_link'] = trim(\Illuminate\Support\Facades\Artisan::output());
-    } catch (\Throwable $e) {
-        $results['storage_link_error'] = $e->getMessage();
     }
 
     // Ensure uploads/petty_cash_proofs directories exist and are writable

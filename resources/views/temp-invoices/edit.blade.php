@@ -97,12 +97,12 @@
                             <!-- Customer Select -->
                             <div class="grid grid-cols-12 gap-4 items-center">
                                 <label class="col-span-12 sm:col-span-3 text-right text-sm font-medium text-gray-600">Customer <span class="text-red-500">*</span></label>
-                                <div class="col-span-12 sm:col-span-9">
-                                    <select name="customer_id" required data-required="true"
+                                <div class="col-span-12 sm:col-span-9 customer-tom-select">
+                                    <select name="customer_id" id="customer_id_select" required data-required="true"
                                         class="w-full rounded-md border-gray-300 focus:border-brand-blue focus:ring-brand-blue sm:text-sm shadow-sm py-2">
                                         <option value="">-- Select Customer --</option>
                                         @foreach($customers as $customer)
-                                            <option value="{{ $customer->id }}" {{ $estimate->customer_id == $customer->id ? 'selected' : '' }}>{{ $customer->name }}</option>
+                                            <option value="{{ $customer->id }}" {{ ($tempInvoice->customer_id ?? $estimate->customer_id) == $customer->id ? 'selected' : '' }}>{{ $customer->name }}</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -126,9 +126,37 @@
                             </div>
 
                             <style>
+                                .customer-tom-select .ts-wrapper .ts-control,
                                 .brand-name-tom-select .ts-wrapper .ts-control {
                                     border: none !important;
                                     box-shadow: none !important;
+                                    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e") !important;
+                                    background-position: right 0.75rem center !important;
+                                    background-repeat: no-repeat !important;
+                                    background-size: 1.1em 1.1em !important;
+                                    padding-right: 2.25rem !important;
+                                }
+                                .customer-tom-select .ts-wrapper.focus,
+                                .brand-name-tom-select .ts-wrapper.focus {
+                                    border-color: #0057be !important;
+                                    box-shadow: 0 0 0 1px #0057be !important;
+                                }
+                                .customer-tom-select .ts-dropdown,
+                                .brand-name-tom-select .ts-dropdown {
+                                    z-index: 50 !important;
+                                    border-radius: 0.375rem !important;
+                                    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+                                }
+                                .customer-tom-select .ts-wrapper.disabled,
+                                .brand-name-tom-select .ts-wrapper.disabled {
+                                    background-color: #f3f4f6 !important;
+                                    opacity: 0.75 !important;
+                                    cursor: not-allowed !important;
+                                }
+                                .customer-tom-select .ts-wrapper.disabled .ts-control,
+                                .brand-name-tom-select .ts-wrapper.disabled .ts-control {
+                                    background-color: #f3f4f6 !important;
+                                    cursor: not-allowed !important;
                                 }
                             </style>
 
@@ -1056,6 +1084,17 @@
                 create: true
             });
 
+            const customerSelectInstance = new TomSelect('#customer_id_select', {
+                create: false,
+                allowEmptyOption: true,
+                placeholder: '-- Select Customer --',
+                render: {
+                    no_results: function(data, escape) {
+                        return '<div class="no-results p-3 text-center text-xs text-gray-500">No customer found matching "' + escape(data.input) + '"</div>';
+                    }
+                }
+            });
+
             // Customer Data for auto-populating fields
             @php
                 $customersData = $customers->mapWithKeys(function($item) {
@@ -1069,57 +1108,78 @@
             @endphp
             const customersData = @json($customersData);
 
-            const customerSelect = document.querySelector('select[name="customer_id"]');
-            
-            if (customerSelect) {
-                customerSelect.addEventListener('change', function() {
-                    const customerId = this.value;
-                    const data = customersData[customerId];
-                    
-                    if (customerId && data) {
-                        // Fill Brand
-                        if (data.brand && brandSelectInstance) {
-                            brandSelectInstance.addOption({value: data.brand, text: data.brand});
-                            brandSelectInstance.setValue(data.brand);
-                        } else if (brandSelectInstance) {
-                            brandSelectInstance.clear();
-                        }
-
-                        // Fill Attention To
-                        const attentionInput = document.querySelector('input[name="attention_to"]');
-                        if (attentionInput) attentionInput.value = data.attention || '';
-
-                        // Fill Designation
-                        const designationInput = document.querySelector('input[name="designation"]');
-                        if (designationInput) designationInput.value = data.designation || '';
-
-                        // Fill Address
-                        if (data.address) {
-                            const lines = data.address.split(/\r?\n/);
-                            document.querySelector('input[name="address_line_1"]').value = lines[0] || '';
-                            document.querySelector('input[name="address_line_2"]').value = lines[1] || '';
-                            document.querySelector('input[name="address_line_3"]').value = lines[2] || '';
-                        } else {
-                            document.querySelector('input[name="address_line_1"]').value = '';
-                            document.querySelector('input[name="address_line_2"]').value = '';
-                            document.querySelector('input[name="address_line_3"]').value = '';
-                        }
-                    } else {
-                        if (brandSelectInstance) brandSelectInstance.clear();
-                        document.querySelector('input[name="attention_to"]').value = '';
-                        document.querySelector('input[name="designation"]').value = '';
-                        document.querySelector('input[name="address_line_1"]').value = '';
-                        document.querySelector('input[name="address_line_2"]').value = '';
-                        document.querySelector('input[name="address_line_3"]').value = '';
-                    }
-                });
+            function updateCustomerFields(customerId) {
+                const data = customersData[customerId];
                 
-                // Trigger change immediately in case a customer is pre-selected
-                if (customerSelect.value) {
-                    customerSelect.dispatchEvent(new Event('change'));
-                }
+                if (customerId && data) {
+                    // Fill Brand
+                    if (data.brand && typeof brandSelectInstance !== 'undefined' && brandSelectInstance) {
+                        brandSelectInstance.addOption({value: data.brand, text: data.brand});
+                        brandSelectInstance.setValue(data.brand);
+                        if (brandSelectInstance.control) {
+                            brandSelectInstance.control.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+                        }
+                        if (brandSelectInstance.wrapper) {
+                            brandSelectInstance.wrapper.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+                        }
+                    } else if (typeof brandSelectInstance !== 'undefined' && brandSelectInstance) {
+                        brandSelectInstance.clear();
+                    }
 
+                    // Fill Attention To
+                    const attentionInput = document.querySelector('input[name="attention_to"]');
+                    if (attentionInput) attentionInput.value = data.attention || '';
+
+                    // Fill Designation
+                    const designationInput = document.querySelector('input[name="designation"]');
+                    if (designationInput) designationInput.value = data.designation || '';
+
+                    // Fill Address
+                    if (data.address) {
+                        const lines = data.address.split(/\r?\n/);
+                        const a1 = document.querySelector('input[name="address_line_1"]');
+                        const a2 = document.querySelector('input[name="address_line_2"]');
+                        const a3 = document.querySelector('input[name="address_line_3"]');
+                        if (a1) a1.value = lines[0] || '';
+                        if (a2) a2.value = lines[1] || '';
+                        if (a3) a3.value = lines[2] || '';
+                    } else {
+                        const a1 = document.querySelector('input[name="address_line_1"]');
+                        const a2 = document.querySelector('input[name="address_line_2"]');
+                        const a3 = document.querySelector('input[name="address_line_3"]');
+                        if (a1) a1.value = '';
+                        if (a2) a2.value = '';
+                        if (a3) a3.value = '';
+                    }
+                } else {
+                    if (typeof brandSelectInstance !== 'undefined' && brandSelectInstance) brandSelectInstance.clear();
+                    const attentionInput = document.querySelector('input[name="attention_to"]');
+                    if (attentionInput) attentionInput.value = '';
+                    const designationInput = document.querySelector('input[name="designation"]');
+                    if (designationInput) designationInput.value = '';
+                    const a1 = document.querySelector('input[name="address_line_1"]');
+                    const a2 = document.querySelector('input[name="address_line_2"]');
+                    const a3 = document.querySelector('input[name="address_line_3"]');
+                    if (a1) a1.value = '';
+                    if (a2) a2.value = '';
+                    if (a3) a3.value = '';
+                }
             }
+
+            customerSelectInstance.on('change', function(customerId) {
+                if (customerId) {
+                    if (customerSelectInstance.control) {
+                        customerSelectInstance.control.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+                    }
+                    if (customerSelectInstance.wrapper) {
+                        customerSelectInstance.wrapper.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+                    }
+                    const parent = customerSelectInstance.wrapper ? customerSelectInstance.wrapper.closest('div') : null;
+                    const err = parent ? parent.querySelector('.field-error') : null;
+                    if (err) err.remove();
+                }
+                updateCustomerFields(customerId);
+            });
 
             // Custom Form Validation
             const form = document.getElementById('estimate-form');
@@ -1155,10 +1215,19 @@
                     let isValid = true;
                     let firstErrorField = null;
 
+                    // Check Customer Select (TomSelect)
+                    if (customerSelectInstance && !customerSelectInstance.getValue()) {
+                        isValid = false;
+                        const control = customerSelectInstance.wrapper || customerSelectInstance.control;
+                        control.classList.add('border-red-500', 'ring-1', 'ring-red-500');
+                        showError(control, 'Please select a customer');
+                        if (!firstErrorField) firstErrorField = control;
+                    }
+
                     // Check Brand Select (TomSelect)
                     if (typeof brandSelectInstance !== 'undefined' && brandSelectInstance && !brandSelectInstance.getValue()) {
                         isValid = false;
-                        const control = brandSelectInstance.control;
+                        const control = brandSelectInstance.wrapper || brandSelectInstance.control;
                         control.classList.add('border-red-500', 'ring-1', 'ring-red-500');
                         showError(control, 'Please select a brand');
                         if (!firstErrorField) firstErrorField = control;
@@ -1166,8 +1235,8 @@
 
                     // Check all data-required fields
                     this.querySelectorAll('[data-required="true"]').forEach(el => {
-                        // Skip if it's the hidden select for brandSelectInstance handled above
-                        if (el.id === 'brand_name_select') return;
+                        // Skip if it's the hidden select for brandSelectInstance or customerSelectInstance handled above
+                        if (el.id === 'brand_name_select' || el.id === 'customer_id_select') return;
 
                         let val = el.value;
                         // For Quill hidden fields, empty content might still have <p><br></p>
@@ -1204,6 +1273,9 @@
                 // Special handling for TomSelect if necessary
                 if (typeof brandSelectInstance !== 'undefined' && brandSelectInstance) {
                     brandSelectInstance.disable();
+                }
+                if (typeof customerSelectInstance !== 'undefined' && customerSelectInstance) {
+                    customerSelectInstance.disable();
                 }
             @endif
         });

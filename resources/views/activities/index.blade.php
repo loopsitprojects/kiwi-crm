@@ -40,7 +40,7 @@
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                            <td class="px-6 py-4 text-sm text-gray-700 max-w-lg break-words">
                                 {{ $activity->description }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

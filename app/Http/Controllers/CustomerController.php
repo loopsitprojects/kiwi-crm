@@ -67,9 +67,13 @@ class CustomerController extends Controller
         $this->logAction("Created customer: {$customer->name}", $customer);
 
         // Notify Admins (Finance Admin, Super Admin, IT Admin & Management)
-        $admins = \App\Models\User::whereIn('role', ['Finance Admin', 'Super Admin', 'IT Admin', 'Management'])->get();
-        foreach ($admins as $admin) {
-            $admin->notify(new \App\Notifications\CustomerActionNotification($customer, 'added', auth()->user()));
+        try {
+            $admins = \App\Models\User::whereIn('role', ['Finance Admin', 'Super Admin', 'IT Admin', 'Management'])->get();
+            foreach ($admins as $admin) {
+                $admin->notify(new \App\Notifications\CustomerActionNotification($customer, 'added', auth()->user()));
+            }
+        } catch (\Throwable $ne) {
+            \Illuminate\Support\Facades\Log::warning('Customer creation notification failed: ' . $ne->getMessage());
         }
 
         return redirect()->route('customers.index')->with('success', 'Customer created successfully.');
@@ -87,12 +91,14 @@ class CustomerController extends Controller
         $customer = Customer::findOrFail($id);
         $name = $customer->name;
         
-        // Deleting customer will cascade delete quotations and invoices due to DB constraints
-        $customer->delete();
-        
-        $this->logAction("Deleted customer: {$name}");
-
-        return redirect()->route('customers.index')->with('success', 'Customer deleted successfully.');
+        try {
+            $customer->delete();
+            $this->logAction("Deleted customer: {$name}");
+            return redirect()->route('customers.index')->with('success', 'Customer deleted successfully.');
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error("Failed to delete customer {$id}: " . $e->getMessage());
+            return redirect()->route('customers.index')->with('error', 'Cannot delete this customer because they have linked deals, estimates, or invoices.');
+        }
     }
 
     // Admin Review Methods
@@ -110,15 +116,28 @@ class CustomerController extends Controller
             return back()->with('error', 'Request already processed.');
         }
 
-        $customer = $request->customer;
-        $customer->update($request->data);
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        try {
+            $customer = $request->customer;
+            $customer->update($request->data);
 
-        $request->update(['status' => 'approved']);
-        $this->logAction("Approved customer update for: {$customer->name}", $customer);
+            $request->update(['status' => 'approved']);
+            $this->logAction("Approved customer update for: {$customer->name}", $customer);
+
+            \Illuminate\Support\Facades\DB::commit();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            \Illuminate\Support\Facades\Log::error('Customer update approval failed: ' . $e->getMessage());
+            return back()->with('error', 'Failed to apply customer update: ' . $e->getMessage());
+        }
 
         // Notify User
-        if ($request->user) {
-            $request->user->notify(new \App\Notifications\CustomerUpdateResultNotification($request, 'approved'));
+        try {
+            if ($request->user) {
+                $request->user->notify(new \App\Notifications\CustomerUpdateResultNotification($request, 'approved'));
+            }
+        } catch (\Throwable $ne) {
+            \Illuminate\Support\Facades\Log::warning('Customer update result notification failed: ' . $ne->getMessage());
         }
 
         return redirect()->route('customers.index')->with('success', 'Customer update approved and applied.');
@@ -136,8 +155,12 @@ class CustomerController extends Controller
         $this->logAction("Rejected customer update for: {$request->customer->name}", $request->customer);
 
         // Notify User
-        if ($request->user) {
-            $request->user->notify(new \App\Notifications\CustomerUpdateResultNotification($request, 'rejected'));
+        try {
+            if ($request->user) {
+                $request->user->notify(new \App\Notifications\CustomerUpdateResultNotification($request, 'rejected'));
+            }
+        } catch (\Throwable $ne) {
+            \Illuminate\Support\Facades\Log::warning('Customer update reject notification failed: ' . $ne->getMessage());
         }
 
         return redirect()->route('customers.index')->with('success', 'Customer update rejected.');

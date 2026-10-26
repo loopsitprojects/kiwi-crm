@@ -170,21 +170,25 @@ class FinancialPerformanceService
             'Tech' => 'IT',
         ];
 
-        foreach ($sbuMap as $dbDept => $dashDept) {
-            if (isset($deptTargets[$dbDept]) && isset($data['departments'][$dashDept])) {
-                $monthlyTarget = (float) $deptTargets[$dbDept]->target_amount;
-                if ($monthlyTarget > 0) {
-                    $annual = $monthlyTarget * 12;
-                    $quarterly = $annual / 4;
-                    $data['departments'][$dashDept]['target_annual'] = $annual;
-                    $data['departments'][$dashDept]['target_quarterly'] = $quarterly;
+        $fyMonths = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+        $currentYear = (int) date('Y');
 
-                    // Update monthly targets array for this department (all 12 months)
-                    if (isset($data['monthly_targets'][$dashDept])) {
-                        for ($i = 0; $i < 12; $i++) {
-                            $data['monthly_targets'][$dashDept][$i] = $monthlyTarget;
+        foreach ($sbuMap as $dbDept => $dashDept) {
+            if (isset($data['departments'][$dashDept])) {
+                $annual = 0;
+                for ($i = 0; $i < 12; $i++) {
+                    $m = $fyMonths[$i];
+                    $target = Target::getDepartmentTarget($dbDept, $currentYear, $m);
+                    $annual += $target;
+                    if (isset($data['monthly_targets'][$dashDept]) && $i < count($data['monthly_targets'][$dashDept])) {
+                        if ($target > 0) {
+                            $data['monthly_targets'][$dashDept][$i] = $target;
                         }
                     }
+                }
+                if ($annual > 0) {
+                    $data['departments'][$dashDept]['target_annual'] = $annual;
+                    $data['departments'][$dashDept]['target_quarterly'] = $annual / 4;
                 }
             }
         }
@@ -197,45 +201,22 @@ class FinancialPerformanceService
         ];
 
         foreach ($salesUnitMap as $dbDept => $unitName) {
-            if (isset($deptTargets[$dbDept]) && isset($data['sales_units'][$unitName])) {
-                $monthlyTarget = (float) $deptTargets[$dbDept]->target_amount;
-                if ($monthlyTarget > 0) {
-                    $annual = $monthlyTarget * 12;
-                    $quarterly = $annual / 4;
-                    $data['sales_units'][$unitName]['target_annual'] = $annual;
-                    $data['sales_units'][$unitName]['target_quarterly'] = $quarterly;
-
-                    $targetKey = $unitName === 'IT' ? 'IT_sales' : $unitName;
-                    if (isset($data['monthly_targets'][$targetKey])) {
-                        for ($i = 0; $i < 12; $i++) {
-                            $data['monthly_targets'][$targetKey][$i] = $monthlyTarget;
+            if (isset($data['sales_units'][$unitName])) {
+                $annual = 0;
+                $targetKey = $unitName === 'IT' ? 'IT_sales' : $unitName;
+                for ($i = 0; $i < 12; $i++) {
+                    $m = $fyMonths[$i];
+                    $target = Target::getDepartmentTarget($dbDept, $currentYear, $m);
+                    $annual += $target;
+                    if (isset($data['monthly_targets'][$targetKey]) && $i < count($data['monthly_targets'][$targetKey])) {
+                        if ($target > 0) {
+                            $data['monthly_targets'][$targetKey][$i] = $target;
                         }
                     }
                 }
-            }
-        }
-
-        // Fill any null months 0..11 in monthly_targets using target_annual / 12
-        foreach ($sbuMap as $dbDept => $dashDept) {
-            $annual = (float) ($data['departments'][$dashDept]['target_annual'] ?? 0);
-            if ($annual > 0 && isset($data['monthly_targets'][$dashDept])) {
-                $monthly = $annual / 12;
-                for ($i = 0; $i < 12; $i++) {
-                    if (!isset($data['monthly_targets'][$dashDept][$i]) || $data['monthly_targets'][$dashDept][$i] === null) {
-                        $data['monthly_targets'][$dashDept][$i] = $monthly;
-                    }
-                }
-            }
-        }
-        foreach ($salesUnitMap as $dbDept => $unitName) {
-            $annual = (float) ($data['sales_units'][$unitName]['target_annual'] ?? 0);
-            $targetKey = $unitName === 'IT' ? 'IT_sales' : $unitName;
-            if ($annual > 0 && isset($data['monthly_targets'][$targetKey])) {
-                $monthly = $annual / 12;
-                for ($i = 0; $i < 12; $i++) {
-                    if (!isset($data['monthly_targets'][$targetKey][$i]) || $data['monthly_targets'][$targetKey][$i] === null) {
-                        $data['monthly_targets'][$targetKey][$i] = $monthly;
-                    }
+                if ($annual > 0) {
+                    $data['sales_units'][$unitName]['target_annual'] = $annual;
+                    $data['sales_units'][$unitName]['target_quarterly'] = $annual / 4;
                 }
             }
         }
@@ -420,8 +401,8 @@ class FinancialPerformanceService
             return $data;
         }
 
-        $userTargets = Target::where('type', 'user')->pluck('target_amount', 'user_id');
         $usersByName = User::all()->keyBy('name');
+        $currentYear = (int) date('Y');
 
         foreach ($data['individuals'] as &$person) {
             $name = $person['name'] ?? '';
@@ -435,11 +416,13 @@ class FinancialPerformanceService
                 }
             }
 
-            if ($matchedUser && isset($userTargets[$matchedUser->id])) {
-                $monthlyTarget = (float) $userTargets[$matchedUser->id];
-                if ($monthlyTarget > 0 && isset($person['monthly_target'])) {
-                    foreach ($person['monthly_target'] as $m => $val) {
-                        $person['monthly_target'][$m] = $monthlyTarget;
+            if ($matchedUser && isset($person['monthly_target']) && is_array($person['monthly_target'])) {
+                foreach ($person['monthly_target'] as $mName => $val) {
+                    $mNum = (int) date('n', strtotime($mName));
+                    $targetYear = ($mNum >= 4) ? $currentYear : ($currentYear + 1);
+                    $monthlyTarget = Target::getUserTarget($matchedUser->id, $targetYear, $mNum);
+                    if ($monthlyTarget > 0) {
+                        $person['monthly_target'][$mName] = $monthlyTarget;
                     }
                 }
             }

@@ -136,7 +136,7 @@
             <div class="flex justify-between items-start mb-12 estimate-header">
                 <!-- Company Details (Left) -->
                 <div class="w-1/2">
-                    <img src="{{ asset('images/logo_loops.png') }}" alt="Creative Kiwi" class="h-12 w-auto mb-6">
+                    <img src="{{ asset('images/logo_loops.png') }}" alt="Company Logo" class="h-12 w-auto mb-6">
                     <div class="text-sm text-gray-600 leading-relaxed">
                         <p class="font-bold text-gray-800 text-base">{{ \App\Models\Setting::get('company_name') }}</p>
                         <p>{{ \App\Models\Setting::get('company_address_1') }}</p>

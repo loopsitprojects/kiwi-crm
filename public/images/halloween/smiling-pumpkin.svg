@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 220" fill="none">
+  <defs>
+    <!-- Pumpkin Outer Gradient -->
+    <radialGradient id="smPumpkinBody" cx="50%" cy="55%" r="55%">
+      <stop offset="0%" stop-color="#ff9900" />
+      <stop offset="45%" stop-color="#ea580c" />
+      <stop offset="85%" stop-color="#c2410c" />
+      <stop offset="100%" stop-color="#9a3412" />
+    </radialGradient>
+
+    <!-- Pumpkin Side Rib Gradient -->
+    <radialGradient id="smPumpkinSide" cx="40%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f97316" />
+      <stop offset="70%" stop-color="#c2410c" />
+      <stop offset="100%" stop-color="#7c2d12" />
+    </radialGradient>
+
+    <!-- Stem Gradient -->
+    <linearGradient id="smPumpkinStem" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#15803d" />
+      <stop offset="50%" stop-color="#166534" />
+      <stop offset="100%" stop-color="#14532d" />
+    </linearGradient>
+
+    <!-- Intense Fire Inner Glow for Eyes and Mouth -->
+    <filter id="flameGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#fef08a" flood-opacity="0.95" />
+      <feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#f59e0b" flood-opacity="0.85" />
+      <feDropShadow dx="0" dy="4" stdDeviation="22" flood-color="#ea580c" flood-opacity="0.6" />
+    </filter>
+
+    <radialGradient id="flameInner" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="35%" stop-color="#fef08a" />
+      <stop offset="70%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#f97316" />
+    </radialGradient>
+  </defs>
+
+  <!-- Pumpkin Ground Shadow -->
+  <ellipse cx="120" cy="205" rx="85" ry="12" fill="#000000" opacity="0.45" filter="blur(6px)" />
+
+  <!-- Pumpkin Gnarled Stem -->
+  <path d="M 112 52 C 114 30 128 14 146 10 C 142 20 134 36 126 50 Z" fill="url(#smPumpkinStem)" stroke="#0f3e1b" stroke-width="1.5" />
+  <path d="M 120 45 C 126 32 135 22 144 18" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round" opacity="0.6" fill="none" />
+
+  <!-- Pumpkin Ribs / Body (Back to Front) -->
+  <!-- Outer Far Left & Right Lobes -->
+  <ellipse cx="58" cy="132" rx="46" ry="62" fill="url(#smPumpkinSide)" />
+  <ellipse cx="182" cy="132" rx="46" ry="62" fill="url(#smPumpkinSide)" />
+
+  <!-- Mid Left & Right Lobes -->
+  <ellipse cx="85" cy="134" rx="44" ry="67" fill="url(#smPumpkinBody)" />
+  <ellipse cx="155" cy="134" rx="44" ry="67" fill="url(#smPumpkinBody)" />
+
+  <!-- Center Lobe -->
+  <ellipse cx="120" cy="136" rx="40" ry="70" fill="url(#smPumpkinBody)" />
+
+  <!-- Top Depressions & Rib Highlights -->
+  <path d="M 60 78 C 80 68 160 68 180 78 C 150 72 90 72 60 78 Z" fill="#7c2d12" opacity="0.6" />
+
+  <!-- Carved Glowing Smiling Face -->
+  <g filter="url(#flameGlow)">
+    <!-- Left Smiling Slanted Eye (Happy Mischievous Wink/Arch) -->
+    <path d="M 74 105 
+             C 82 92, 98 94, 104 108 
+             C 98 114, 82 115, 74 105 Z" 
+          fill="url(#flameInner)" />
+    <!-- Pupil / carved interior tooth detail in left eye -->
+    <polygon points="88,97 94,103 84,104" fill="#9a3412" opacity="0.75" />
+
+    <!-- Right Smiling Slanted Eye -->
+    <path d="M 166 105 
+             C 158 92, 142 94, 136 108 
+             C 142 114, 158 115, 166 105 Z" 
+          fill="url(#flameInner)" />
+    <!-- Pupil in right eye -->
+    <polygon points="152,97 146,103 156,104" fill="#9a3412" opacity="0.75" />
+
+    <!-- Carved Triangle Nose with little notch -->
+    <polygon points="120,118 110,132 130,132" fill="url(#flameInner)" />
+
+    <!-- Giant Smiling / Laughing Carved Mouth with Jagged Teeth -->
+    <path d="M 52 142 
+             C 74 186, 166 186, 188 142 
+             C 176 150, 168 148, 160 144 
+             C 156 156, 146 158, 142 146 
+             C 134 148, 126 148, 120 144 
+             C 114 156, 104 158, 98 146 
+             C 90 148, 82 150, 72 144 
+             C 66 150, 58 148, 52 142 Z" 
+          fill="url(#flameInner)" />
+
+    <!-- Bottom Teeth (Silhouette projecting up from bottom jaw) -->
+    <polygon points="86,168 92,156 98,168" fill="#7c2d12" />
+    <polygon points="115,172 120,158 126,172" fill="#7c2d12" />
+    <polygon points="144,168 150,156 156,168" fill="#7c2d12" />
+  </g>
+</svg>

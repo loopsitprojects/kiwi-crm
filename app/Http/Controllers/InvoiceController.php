@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Invoice;
+use App\Models\InvoicePayment;
 use App\Models\Customer;
 use App\Models\Estimate;
 use App\Models\TempInvoice;
@@ -20,7 +21,7 @@ class InvoiceController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Invoice::with(['customer', 'estimate.deal', 'estimate.thirdPartyCosts' => function($q) {
+        $query = Invoice::with(['customer', 'payments.recorder', 'estimate.deal', 'estimate.thirdPartyCosts' => function($q) {
             $q->whereNotNull('file_path')->where('file_path', '!=', '');
         }])->where('is_proforma', false);
 
@@ -160,7 +161,7 @@ class InvoiceController extends Controller
 
     public function invoiced(Request $request)
     {
-        $query = Estimate::with(['customer', 'deal', 'thirdPartyCosts' => function($q) {
+        $query = Estimate::with(['customer', 'deal', 'invoices', 'thirdPartyCosts' => function($q) {
             $q->whereNotNull('file_path')->where('file_path', '!=', '');
         }])->whereIn('status', ['invoiced', 'approved']);
 
@@ -232,7 +233,7 @@ class InvoiceController extends Controller
             return redirect()->route('invoices.index')->with('error', 'Unauthorized access.');
         }
 
-        $query = Invoice::with(['customer', 'estimate.thirdPartyCosts' => function($q) {
+        $query = Invoice::with(['customer', 'payments.recorder', 'estimate.thirdPartyCosts' => function($q) {
             $q->whereNotNull('file_path')->where('file_path', '!=', '');
         }])->where('is_proforma', true);
 
@@ -553,13 +554,265 @@ class InvoiceController extends Controller
         }
 
         $request->validate([
-            'status' => 'required|in:unpaid,paid,overdue'
+            'status' => 'required|in:unpaid,paid,overdue,partial'
         ]);
+
+        if ($invoice->payments()->exists()) {
+            if ($request->status === 'unpaid') {
+                if ($request->wantsJson() || $request->ajax()) {
+                    return response()->json(['success' => false, 'message' => 'Cannot mark an invoice with recorded payments as unpaid. Remove payment records first.'], 422);
+                }
+                return back()->with('error', 'Cannot mark an invoice with recorded payments as unpaid. Remove payment records first.');
+            }
+
+            if ($request->status === 'paid' && $invoice->due_amount > 0) {
+                if ($request->wantsJson() || $request->ajax()) {
+                    return response()->json(['success' => false, 'message' => 'Cannot mark an invoice as paid while there is still a remaining due balance. Record the full payment through partial payments.'], 422);
+                }
+                return back()->with('error', 'Cannot mark an invoice as paid while there is still a remaining due balance. Record the full payment through partial payments.');
+            }
+        }
 
         $invoice->update(['status' => $request->status]);
         $this->logAction("Updated status to {$request->status} for invoice: {$invoice->invoice_number}", $invoice);
 
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Invoice status updated successfully.',
+                'status' => $invoice->status
+            ]);
+        }
+
         return back()->with('success', 'Invoice status updated successfully.');
+    }
+
+    /**
+     * Get payment history and details for an invoice.
+     */
+    public function getPayments(Request $request, Invoice $invoice)
+    {
+        $invoice->load(['payments.recorder', 'customer']);
+
+        $payments = $invoice->payments->map(function ($payment) {
+            return [
+                'id' => $payment->id,
+                'amount' => (float) $payment->amount,
+                'amount_formatted' => number_format((float) $payment->amount, 2),
+                'payment_date' => $payment->payment_date ? $payment->payment_date->format('Y-m-d') : null,
+                'payment_date_formatted' => $payment->payment_date ? $payment->payment_date->format('d M Y') : 'N/A',
+                'payment_method' => $payment->payment_method ?: 'N/A',
+                'note' => $payment->note ?: '',
+                'recorded_by' => $payment->recorder->name ?? 'System',
+                'created_at' => $payment->created_at ? $payment->created_at->format('d M Y H:i') : null,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'invoice' => [
+                'id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'customer_name' => $invoice->customer->name ?? 'N/A',
+                'currency' => $invoice->currency_code,
+                'total_amount' => (float) $invoice->total_amount,
+                'total_amount_formatted' => number_format((float) $invoice->total_amount, 2),
+                'total_paid' => $invoice->total_paid_amount,
+                'total_paid_formatted' => number_format($invoice->total_paid_amount, 2),
+                'due_amount' => $invoice->due_amount,
+                'due_amount_formatted' => number_format($invoice->due_amount, 2),
+                'status' => $invoice->status,
+                'status_label' => $invoice->status === 'partial' ? 'Partial Payment' : ucfirst($invoice->status),
+            ],
+            'payments' => $payments,
+            'can_manage' => auth()->user()->hasRole('Super Admin'),
+        ]);
+    }
+
+    /**
+     * Record a partial payment for an invoice.
+     */
+    public function storePayment(Request $request, Invoice $invoice)
+    {
+        if (!auth()->user()->hasRole('Super Admin')) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Only Super Admin can record invoice payments.'], 403);
+            }
+            abort(403, 'Only Super Admin can record invoice payments.');
+        }
+
+        $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+            'payment_date' => 'required|date',
+            'payment_method' => 'nullable|string|max:100',
+            'note' => 'nullable|string|max:500',
+        ]);
+
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        try {
+            $payment = InvoicePayment::create([
+                'invoice_id' => $invoice->id,
+                'amount' => $request->amount,
+                'payment_date' => $request->payment_date,
+                'payment_method' => $request->payment_method,
+                'note' => $request->note,
+                'recorded_by' => auth()->id(),
+            ]);
+
+            // Recalculate status based on payments
+            $invoice->load('payments');
+            $totalPaid = (float) $invoice->payments->sum('amount');
+            $totalAmount = (float) $invoice->total_amount;
+
+            if ($totalPaid >= $totalAmount) {
+                $newStatus = 'paid';
+            } elseif ($totalPaid > 0) {
+                $newStatus = 'partial';
+            } else {
+                $newStatus = 'unpaid';
+            }
+
+            $invoice->update(['status' => $newStatus]);
+
+            $currency = $invoice->currency ?: 'LKR';
+            $formattedAmount = number_format($payment->amount, 2);
+            $methodPart = $payment->payment_method ? " via {$payment->payment_method}" : '';
+            $dueFormatted = number_format($invoice->due_amount, 2);
+
+            $paymentDesc = ($newStatus === 'paid')
+                ? "Recorded " . ($invoice->payments->count() > 1 ? 'final' : 'full') . " payment of {$currency} {$formattedAmount}{$methodPart} for invoice: {$invoice->invoice_number}"
+                : "Recorded partial payment of {$currency} {$formattedAmount}{$methodPart} for invoice: {$invoice->invoice_number} (Remaining due: {$currency} {$dueFormatted})";
+
+            $this->logAction($paymentDesc, $invoice, [
+                'payment_id' => $payment->id,
+                'amount' => (float) $payment->amount,
+                'currency' => $currency,
+                'payment_date' => $payment->payment_date ? $payment->payment_date->format('Y-m-d') : null,
+                'payment_method' => $payment->payment_method,
+                'note' => $payment->note,
+                'invoice_number' => $invoice->invoice_number,
+                'invoice_status' => $newStatus,
+                'total_paid' => $totalPaid,
+                'due_amount' => (float) $invoice->due_amount,
+            ]);
+
+            \Illuminate\Support\Facades\DB::commit();
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Payment recorded successfully.',
+                    'payment' => $payment,
+                    'invoice' => [
+                        'status' => $invoice->status,
+                        'total_paid' => $invoice->total_paid_amount,
+                        'due_amount' => $invoice->due_amount,
+                    ]
+                ]);
+            }
+
+            return back()->with('success', 'Payment of ' . number_format($payment->amount, 2) . ' recorded successfully.');
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            \Illuminate\Support\Facades\Log::error('Failed to store invoice payment: ' . $e->getMessage());
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to record payment: ' . $e->getMessage(),
+                ], 500);
+            }
+
+            return back()->with('error', 'Failed to record payment: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Delete an invoice partial payment.
+     */
+    public function destroyPayment(Request $request, Invoice $invoice, InvoicePayment $payment)
+    {
+        if (!auth()->user()->hasRole('Super Admin')) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Only Super Admin can delete invoice payments.'], 403);
+            }
+            abort(403, 'Only Super Admin can delete invoice payments.');
+        }
+
+        if ($payment->invoice_id !== $invoice->id) {
+            abort(404, 'Payment does not belong to this invoice.');
+        }
+
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        try {
+            $deletedAmount = $payment->amount;
+            $deletedMethod = $payment->payment_method;
+            $paymentId = $payment->id;
+            $payment->delete();
+
+            // Recalculate status based on remaining payments
+            $invoice->load('payments');
+            $totalPaid = (float) $invoice->payments->sum('amount');
+            $totalAmount = (float) $invoice->total_amount;
+
+            if ($totalPaid >= $totalAmount && $totalPaid > 0) {
+                $newStatus = 'paid';
+            } elseif ($totalPaid > 0) {
+                $newStatus = 'partial';
+            } else {
+                $newStatus = 'unpaid';
+            }
+
+            $invoice->update(['status' => $newStatus]);
+
+            $currency = $invoice->currency ?: 'LKR';
+            $formattedAmount = number_format($deletedAmount, 2);
+            $methodPart = $deletedMethod ? " ({$deletedMethod})" : '';
+            $dueFormatted = number_format($invoice->due_amount, 2);
+
+            $this->logAction(
+                "Deleted payment of {$currency} {$formattedAmount}{$methodPart} from invoice: {$invoice->invoice_number} (Status: {$newStatus}, Remaining due: {$currency} {$dueFormatted})",
+                $invoice,
+                [
+                    'deleted_payment_id' => $paymentId,
+                    'deleted_amount' => (float) $deletedAmount,
+                    'currency' => $currency,
+                    'payment_method' => $deletedMethod,
+                    'invoice_number' => $invoice->invoice_number,
+                    'invoice_status' => $newStatus,
+                    'total_paid' => $totalPaid,
+                    'due_amount' => (float) $invoice->due_amount,
+                ]
+            );
+
+            \Illuminate\Support\Facades\DB::commit();
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Payment deleted successfully.',
+                    'invoice' => [
+                        'status' => $invoice->status,
+                        'total_paid' => $invoice->total_paid_amount,
+                        'due_amount' => $invoice->due_amount,
+                    ]
+                ]);
+            }
+
+            return back()->with('success', 'Payment record deleted successfully.');
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            \Illuminate\Support\Facades\Log::error('Failed to delete invoice payment: ' . $e->getMessage());
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to delete payment: ' . $e->getMessage(),
+                ], 500);
+            }
+
+            return back()->with('error', 'Failed to delete payment: ' . $e->getMessage());
+        }
     }
 
     public function duplicate(Invoice $invoice)
@@ -703,6 +956,258 @@ class InvoiceController extends Controller
             \Illuminate\Support\Facades\DB::rollBack();
             \Illuminate\Support\Facades\Log::error('Failed to revert estimate to pending: ' . $e->getMessage());
             return back()->with('error', 'Failed to revert estimate to pending: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Revert an invoice back to 'ready_to_invoice' or 'estimate' (draft) state.
+     * Accessible ONLY by IT Admins.
+     */
+    public function revert(Request $request, Invoice $invoice)
+    {
+        $user = auth()->user();
+        if (!$user || !$user->isITAdmin()) {
+            abort(403, 'Unauthorized. Only IT Admins are authorized to revert invoices.');
+        }
+
+        $request->validate([
+            'target_state' => 'required|in:ready_to_invoice,draft,estimate',
+        ]);
+
+        $targetState = $request->input('target_state');
+        if ($targetState === 'estimate') {
+            $targetState = 'draft';
+        }
+
+        $invoiceNumber = $invoice->invoice_number;
+        $estimate = $invoice->estimate;
+
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        try {
+            if ($targetState === 'ready_to_invoice') {
+                if ($estimate) {
+                    $oldStatus = $estimate->status;
+                    $estimate->update(['status' => 'ready_to_invoice']);
+
+                    // Ensure TempInvoice exists for this estimate
+                    $existingTemp = TempInvoice::where('quotation_id', $estimate->id)->first();
+                    if (!$existingTemp) {
+                        $latestTemp = TempInvoice::orderBy('id', 'desc')->first();
+                        $sequence = 1;
+                        if ($latestTemp && preg_match('/TEMP_(\d+)$/', $latestTemp->temp_invoice_number, $matches)) {
+                            $sequence = intval($matches[1]) + 1;
+                        }
+                        $tempInvoiceNumber = 'TEMP_' . str_pad($sequence, 5, '0', STR_PAD_LEFT);
+
+                        $tempInvoice = TempInvoice::create([
+                            'quotation_id' => $estimate->id,
+                            'customer_id' => $invoice->customer_id ?? $estimate->customer_id,
+                            'temp_invoice_number' => $tempInvoiceNumber,
+                            'date' => $invoice->date ?? now()->format('Y-m-d'),
+                            'due_date' => $invoice->due_date ?? now()->addMonth()->format('Y-m-d'),
+                            'total_amount' => $invoice->total_amount ?? ($estimate->total_amount - ($estimate->advance_received_amount ?? 0)),
+                            'status' => 'unpaid',
+                            'is_proforma' => $invoice->is_proforma ? 1 : 0,
+                            'date_of_delivery' => $invoice->date_of_delivery ?? ($estimate->date_of_delivery ?? null),
+                            'place_of_supply' => $invoice->place_of_supply ?? ($estimate->place_of_supply ?? null),
+                        ]);
+
+                        $sourceItems = $invoice->items()->count() > 0 ? $invoice->items : $estimate->items;
+                        foreach ($sourceItems as $item) {
+                            $tempInvoice->items()->create([
+                                'description' => $item->description,
+                                'type' => $item->type ?? 'item',
+                                'quantity' => $item->quantity,
+                                'unit_price' => $item->unit_price,
+                                'amount' => $item->amount,
+                                'sscl_amount' => $item->sscl_amount,
+                                'vat_amount' => $item->vat_amount,
+                                'total_with_vat' => $item->total_with_vat,
+                                'department' => $item->department,
+                                'revenue_category' => $item->revenue_category,
+                            ]);
+                        }
+                    }
+
+                    if ($estimate->deal) {
+                        $this->notifyStakeholders($estimate->deal, new EstimateStatusChangedNotification($estimate, $oldStatus, 'ready_to_invoice', $user));
+                    }
+                }
+
+                // Delete the current invoice record and its items
+                $invoice->items()->delete();
+                $invoice->delete();
+
+                $this->logAction("Reverted invoice {$invoiceNumber} to Ready to Invoice state", $estimate);
+
+                \Illuminate\Support\Facades\DB::commit();
+
+                $msg = "Invoice {$invoiceNumber} was successfully reverted to Ready to Invoice state.";
+                if ($request->wantsJson()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => $msg,
+                        'redirect' => route('invoices.ready'),
+                    ]);
+                }
+
+                return redirect()->route('invoices.ready')->with('success', $msg);
+            } else { // 'draft' (Estimate State)
+                if ($estimate) {
+                    $oldStatus = $estimate->status;
+                    $estimate->update(['status' => 'draft']);
+
+                    // Remove any associated TempInvoice
+                    TempInvoice::where('quotation_id', $estimate->id)->each(function ($temp) {
+                        $temp->items()->delete();
+                        $temp->delete();
+                    });
+
+                    if ($estimate->deal) {
+                        $this->notifyStakeholders($estimate->deal, new EstimateStatusChangedNotification($estimate, $oldStatus, 'draft', $user));
+                    }
+                }
+
+                // Delete the current invoice record and its items
+                $invoice->items()->delete();
+                $invoice->delete();
+
+                $this->logAction("Reverted invoice {$invoiceNumber} to Estimate (Draft) state", $estimate);
+
+                \Illuminate\Support\Facades\DB::commit();
+
+                $msg = "Invoice {$invoiceNumber} was successfully reverted to Estimate state.";
+                if ($request->wantsJson()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => $msg,
+                        'redirect' => route('estimates.index'),
+                    ]);
+                }
+
+                return redirect()->route('estimates.index')->with('success', $msg);
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            \Illuminate\Support\Facades\Log::error('Failed to revert invoice: ' . $e->getMessage());
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to revert invoice: ' . $e->getMessage(),
+                ], 500);
+            }
+
+            return back()->with('error', 'Failed to revert invoice: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Revert an invoiced estimate back to 'ready_to_invoice' or 'estimate' (draft) state.
+     * Accessible ONLY by IT Admins.
+     */
+    public function revertEstimateInvoice(Request $request, Estimate $estimate)
+    {
+        $user = auth()->user();
+        if (!$user || !$user->isITAdmin()) {
+            abort(403, 'Unauthorized. Only IT Admins are authorized to revert invoices.');
+        }
+
+        $request->validate([
+            'target_state' => 'required|in:ready_to_invoice,draft,estimate',
+        ]);
+
+        // If estimate has linked invoice records, revert the invoice
+        $invoice = $estimate->invoices()->latest()->first();
+        if ($invoice) {
+            return $this->revert($request, $invoice);
+        }
+
+        $targetState = $request->input('target_state');
+        if ($targetState === 'estimate') {
+            $targetState = 'draft';
+        }
+
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        try {
+            $oldStatus = $estimate->status;
+            $estimate->update(['status' => $targetState]);
+
+            if ($targetState === 'ready_to_invoice') {
+                $existingTemp = TempInvoice::where('quotation_id', $estimate->id)->first();
+                if (!$existingTemp) {
+                    $latestTemp = TempInvoice::orderBy('id', 'desc')->first();
+                    $sequence = 1;
+                    if ($latestTemp && preg_match('/TEMP_(\d+)$/', $latestTemp->temp_invoice_number, $matches)) {
+                        $sequence = intval($matches[1]) + 1;
+                    }
+                    $tempInvoiceNumber = 'TEMP_' . str_pad($sequence, 5, '0', STR_PAD_LEFT);
+
+                    $tempInvoice = TempInvoice::create([
+                        'quotation_id' => $estimate->id,
+                        'customer_id' => $estimate->customer_id,
+                        'temp_invoice_number' => $tempInvoiceNumber,
+                        'date' => $estimate->date ?? now()->format('Y-m-d'),
+                        'due_date' => now()->addMonth()->format('Y-m-d'),
+                        'total_amount' => $estimate->total_amount - ($estimate->advance_received_amount ?? 0),
+                        'status' => 'unpaid',
+                        'is_proforma' => 0,
+                        'date_of_delivery' => $estimate->date_of_delivery ?? null,
+                        'place_of_supply' => $estimate->place_of_supply ?? null,
+                    ]);
+
+                    foreach ($estimate->items as $item) {
+                        $tempInvoice->items()->create([
+                            'description' => $item->description,
+                            'type' => $item->type ?? 'item',
+                            'quantity' => $item->quantity,
+                            'unit_price' => $item->unit_price,
+                            'amount' => $item->amount,
+                            'sscl_amount' => $item->sscl_amount,
+                            'vat_amount' => $item->vat_amount,
+                            'total_with_vat' => $item->total_with_vat,
+                            'department' => $item->department,
+                            'revenue_category' => $item->revenue_category,
+                        ]);
+                    }
+                }
+            } else {
+                TempInvoice::where('quotation_id', $estimate->id)->each(function ($temp) {
+                    $temp->items()->delete();
+                    $temp->delete();
+                });
+            }
+
+            if ($estimate->deal) {
+                $this->notifyStakeholders($estimate->deal, new EstimateStatusChangedNotification($estimate, $oldStatus, $targetState, $user));
+            }
+
+            $this->logAction("Reverted estimate {$estimate->reference_number} to " . ($targetState === 'draft' ? 'Estimate' : 'Ready to Invoice') . " state", $estimate);
+
+            \Illuminate\Support\Facades\DB::commit();
+
+            $msg = "Estimate {$estimate->reference_number} was successfully reverted to " . ($targetState === 'draft' ? 'Estimate' : 'Ready to Invoice') . " state.";
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => $msg,
+                    'redirect' => $targetState === 'draft' ? route('estimates.index') : route('invoices.ready'),
+                ]);
+            }
+
+            return redirect()->route($targetState === 'draft' ? 'estimates.index' : 'invoices.ready')->with('success', $msg);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            \Illuminate\Support\Facades\Log::error('Failed to revert estimate: ' . $e->getMessage());
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to revert estimate: ' . $e->getMessage(),
+                ], 500);
+            }
+
+            return back()->with('error', 'Failed to revert estimate: ' . $e->getMessage());
         }
     }
 }

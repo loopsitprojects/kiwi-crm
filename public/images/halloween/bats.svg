@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50" fill="#140c1e">
+  <!-- Bat 1 Large -->
+  <path d="M 50 25 C 44 14 30 10 16 18 C 22 28 32 30 36 26 C 36 34 42 36 46 32 C 48 35 52 35 54 32 C 58 36 64 34 64 26 C 68 30 78 28 84 18 C 70 10 56 14 50 25 Z" />
+  <!-- Small bat ears and head -->
+  <polygon points="48,22 47,18 49,20" />
+  <polygon points="52,22 53,18 51,20" />
+</svg>

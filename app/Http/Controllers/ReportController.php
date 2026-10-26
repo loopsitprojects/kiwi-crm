@@ -861,7 +861,7 @@ class ReportController extends Controller
                     $invoice = ($item->invoice && ($item->invoice->invoice_number ?? 'N/A') !== 'N/A') ? $item->invoice : null;
 
                     $total = $item->invoice->total_amount ?? ($deal->revenue ?? 0);
-                    $balanceDue = ($invoice && ($invoice->status ?? '') === 'paid') ? 0 : $total;
+                    $balanceDue = ($invoice && ($invoice->status ?? '') === 'paid') ? 0 : (($invoice && ($invoice->status ?? '') === 'partial') ? $invoice->due_amount : $total);
                     $advanceStatus = ($estimate && ($estimate->advance_received_amount ?? 0) > 0) ? 'RECEIVED' : 'PENDING';
 
                     $row = [];

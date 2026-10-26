@@ -39,8 +39,13 @@ class SendIouSettlementReminders extends Command
         $count = 0;
         foreach ($unsettledIous as $pettyCash) {
             if ($pettyCash->user) {
-                $pettyCash->user->notify(new PettyCashNotification($pettyCash, 'iou_reminder', $systemUser));
-                $count++;
+                try {
+                    $pettyCash->user->notify(new PettyCashNotification($pettyCash, 'iou_reminder', $systemUser));
+                    $count++;
+                } catch (\Throwable $e) {
+                    $this->error("Failed to send IOU reminder for request #{$pettyCash->reference_number}: " . $e->getMessage());
+                    \Illuminate\Support\Facades\Log::warning("IOU reminder failed for request #{$pettyCash->reference_number}: " . $e->getMessage());
+                }
             }
         }
 

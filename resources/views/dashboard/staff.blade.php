@@ -43,29 +43,113 @@
         border: 1px solid #e2e8f0;
         z-index: 9999;
     }
+
+    @if(\App\Models\Setting::isHalloweenTheme())
+    /* Halloween Styling for Staff Dashboard Modals & Form Controls */
+    #newPettyCashModal .bg-white,
+    #detailsModal .bg-white,
+    #reappealModal .bg-white,
+    #settleIouModal .bg-white {
+        background-color: #170829 !important;
+        border: 1.5px solid rgba(255, 120, 0, 0.35) !important;
+        color: #ffffff !important;
+        box-shadow: 0 15px 50px rgba(0, 0, 0, 0.85) !important;
+    }
+    #newPettyCashModal h3,
+    #detailsModal h3,
+    #reappealModal h3,
+    #settleIouModal h3 {
+        color: #ffaa00 !important;
+    }
+    #newPettyCashModal label,
+    #detailsModal label,
+    #reappealModal label,
+    #settleIouModal label {
+        color: #fed7aa !important;
+    }
+    #newPettyCashModal input[type="text"],
+    #newPettyCashModal input[type="number"],
+    #newPettyCashModal textarea,
+    #reappealModal input[type="text"],
+    #reappealModal textarea,
+    #settleIouModal input[type="text"],
+    #settleIouModal input[type="number"],
+    #settleIouModal textarea {
+        background-color: #0f041b !important;
+        border-color: rgba(255, 120, 0, 0.3) !important;
+        color: #ffffff !important;
+    }
+    #newPettyCashModal .bg-gray-50,
+    #detailsModal .bg-gray-50,
+    #reappealModal .bg-gray-50,
+    #settleIouModal .bg-gray-50 {
+        background-color: #1e0b33 !important;
+        border-color: rgba(255, 120, 0, 0.25) !important;
+        color: #fed7aa !important;
+    }
+    .ts-wrapper.multi .ts-control {
+        background-color: #0f041b !important;
+        border-color: rgba(255, 120, 0, 0.3) !important;
+        color: #ffffff !important;
+    }
+    .ts-wrapper.multi .ts-control > div {
+        background-color: #270e3d !important;
+        color: #fed7aa !important;
+        border: 1px solid rgba(255, 120, 0, 0.4) !important;
+    }
+    .ts-dropdown {
+        background-color: #160829 !important;
+        border-color: rgba(255, 120, 0, 0.35) !important;
+        color: #ffffff !important;
+    }
+    .ts-dropdown .option {
+        color: #fed7aa !important;
+    }
+    .ts-dropdown .active {
+        background-color: #ea580c !important;
+        color: #ffffff !important;
+    }
+    @endif
 </style>
 @endpush
 
 @section('content')
+@php
+    $isHalloween = \App\Models\Setting::isHalloweenTheme();
+@endphp
 <div class="max-w-5xl mx-auto py-4 sm:py-8 px-3 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
 
     <!-- Welcome Header Banner -->
-    <div class="bg-gradient-to-r from-brand-pink via-brand-purple to-brand-blue rounded-2xl p-5 sm:p-8 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row justify-between items-stretch md:items-center gap-5 sm:gap-6">
-        <div class="absolute -right-10 -bottom-10 opacity-15 pointer-events-none">
-            <i class="fas fa-id-card text-8xl sm:text-9xl"></i>
-        </div>
+    <div class="{{ $isHalloween ? 'bg-gradient-to-r from-[#200833] via-[#45124b] to-[#8c2e0b] border-2 border-orange-500/40 shadow-[0_10px_35px_rgba(255,100,0,0.25)]' : 'bg-gradient-to-r from-brand-pink via-brand-purple to-brand-blue shadow-xl' }} rounded-2xl p-5 sm:p-8 text-white relative overflow-hidden flex flex-col md:flex-row justify-between items-stretch md:items-center gap-5 sm:gap-6">
+        @if($isHalloween)
+            <div class="absolute -right-6 -bottom-6 opacity-25 pointer-events-none">
+                <img src="{{ asset('images/halloween/pumpkin.svg') }}" class="w-44 sm:w-56 h-auto" alt="pumpkin">
+            </div>
+            <div class="absolute right-1/3 -top-6 opacity-20 pointer-events-none">
+                <img src="{{ asset('images/halloween/spiderweb.svg') }}" class="w-36 h-auto" alt="spiderweb">
+            </div>
+        @else
+            <div class="absolute -right-10 -bottom-10 opacity-15 pointer-events-none">
+                <i class="fas fa-id-card text-8xl sm:text-9xl"></i>
+            </div>
+        @endif
         <div class="relative z-10 flex flex-col sm:flex-row items-center sm:items-start space-y-3 sm:space-y-0 sm:space-x-5 md:space-x-6 text-center sm:text-left">
-            <img src="https://ui-avatars.com/api/?name={{ urlencode($user->name) }}&background=random&size=128"
-                 alt="{{ $user->name }}" 
-                 class="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-white/30 shadow-lg object-cover flex-shrink-0">
+            <div class="relative">
+                <img src="https://ui-avatars.com/api/?name={{ urlencode($user->name) }}&background={{ $isHalloween ? 'ea580c' : 'random' }}&color=ffffff&size=128"
+                     alt="{{ $user->name }}" 
+                     class="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 {{ $isHalloween ? 'border-orange-400/80 shadow-[0_0_20px_rgba(255,120,0,0.6)]' : 'border-white/30 shadow-lg' }} object-cover flex-shrink-0">
+                @if($isHalloween)
+                    <span class="absolute -bottom-1 -right-1 text-xl filter drop-shadow">🎃</span>
+                @endif
+            </div>
             <div>
-                <span class="inline-block px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider mb-2 text-white">
-                    <i class="fas fa-user-tag mr-1"></i> {{ $user->role === 'HR Admin' ? 'HR Admin' : 'Staff Member' }}
+                <span class="inline-block px-3 py-1 {{ $isHalloween ? 'bg-orange-500/25 border border-orange-400/50 text-orange-200' : 'bg-white/20 text-white' }} backdrop-blur-md rounded-full text-[11px] sm:text-xs font-semibold uppercase tracking-wider mb-2">
+                    <i class="fas {{ $isHalloween ? 'fa-ghost text-amber-300' : 'fa-user-tag' }} mr-1"></i> {{ $user->role === 'HR Admin' ? 'HR Admin' : 'Staff Member' }}
                 </span>
-                <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight sm:text-4xl">
+                <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight sm:text-4xl drop-shadow-sm">
                     Welcome, {{ $user->name }}
                 </h1>
-                <p class="text-white/80 text-xs sm:text-sm mt-1">
+                <p class="{{ $isHalloween ? 'text-orange-200/90' : 'text-white/80' }} text-xs sm:text-sm mt-1">
                     {{ $user->role === 'HR Admin' ? 'HR Portal & Department Information' : 'Staff Portal & Department Information' }}
                 </p>
             </div>
@@ -74,7 +158,7 @@
         <div class="relative z-10 flex flex-col sm:flex-row gap-2.5">
             @if($user->role === 'HR Admin')
                 <a href="{{ route('petty-cash.index', ['scope' => 'approvals']) }}"
-                    class="w-full sm:w-auto px-5 py-3 bg-white/20 hover:bg-white/30 text-white font-bold rounded-xl shadow-md border border-white/30 transition-all flex items-center justify-center">
+                    class="w-full sm:w-auto px-5 py-3 {{ $isHalloween ? 'bg-[#1b092b]/80 hover:bg-[#250d3b] text-orange-200 border-orange-500/40' : 'bg-white/20 hover:bg-white/30 text-white border-white/30' }} font-bold rounded-xl shadow-md border transition-all flex items-center justify-center">
                     <i class="fas fa-check-double mr-2 text-emerald-300 text-base"></i> Team Approvals
                     @if(!empty($teamPendingApprovalsCount) && $teamPendingApprovalsCount > 0)
                         <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-black bg-red-500 text-white">
@@ -83,13 +167,13 @@
                     @endif
                 </a>
                 <a href="{{ route('petty-cash.index', ['scope' => 'all_team']) }}"
-                    class="w-full sm:w-auto px-5 py-3 bg-white/20 hover:bg-white/30 text-white font-bold rounded-xl shadow-md border border-white/30 transition-all flex items-center justify-center">
+                    class="w-full sm:w-auto px-5 py-3 {{ $isHalloween ? 'bg-[#1b092b]/80 hover:bg-[#250d3b] text-orange-200 border-orange-500/40' : 'bg-white/20 hover:bg-white/30 text-white border-white/30' }} font-bold rounded-xl shadow-md border transition-all flex items-center justify-center">
                     <i class="fas fa-users-cog mr-2 text-cyan-200 text-base"></i> Team Requests
                 </a>
             @endif
             <button onclick="handleNewRequestClick(event)"
-                class="w-full sm:w-auto px-6 py-3 bg-white text-brand-purple hover:bg-gray-50 font-bold rounded-xl shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center justify-center">
-                <i class="fas fa-wallet mr-2 text-brand-pink text-lg"></i> Petty Cash Request
+                class="w-full sm:w-auto px-6 py-3 {{ $isHalloween ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold shadow-[0_0_25px_rgba(255,120,0,0.55)] border border-amber-300/40' : 'bg-white text-brand-purple hover:bg-gray-50 shadow-lg' }} font-bold rounded-xl transition-all transform hover:-translate-y-0.5 flex items-center justify-center">
+                <i class="fas fa-wallet mr-2 {{ $isHalloween ? 'text-white' : 'text-brand-pink' }} text-lg"></i> Petty Cash Request
             </button>
         </div>
     </div>
@@ -97,35 +181,35 @@
     <!-- Staff Information Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
         <!-- Name Card -->
-        <div class="bg-white rounded-xl p-4 sm:p-6 shadow-md border border-gray-100 flex items-center space-x-3.5 sm:space-x-4 hover:shadow-lg transition-shadow">
-            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-pink-50 flex items-center justify-center text-brand-pink text-xl sm:text-2xl flex-shrink-0">
+        <div class="{{ $isHalloween ? 'bg-[#160829]/95 border-orange-500/30 shadow-[0_4px_25px_rgba(0,0,0,0.5)] backdrop-blur-md hover:border-orange-500/60 hover:shadow-[0_4px_30px_rgba(255,120,0,0.25)]' : 'bg-white border-gray-100 shadow-md hover:shadow-lg' }} rounded-xl p-4 sm:p-6 border flex items-center space-x-3.5 sm:space-x-4 transition-all">
+            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl {{ $isHalloween ? 'bg-orange-500/20 text-orange-400 border border-orange-500/35' : 'bg-pink-50 text-brand-pink' }} flex items-center justify-center text-xl sm:text-2xl flex-shrink-0">
                 <i class="fas fa-user"></i>
             </div>
             <div class="min-w-0 flex-1">
-                <p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Staff Name</p>
-                <p class="text-base sm:text-lg font-bold text-gray-900 break-words leading-snug mt-0.5 sm:mt-1">{{ $user->name }}</p>
+                <p class="text-[10px] sm:text-xs font-semibold {{ $isHalloween ? 'text-orange-300/80' : 'text-gray-500' }} uppercase tracking-wider">Staff Name</p>
+                <p class="text-base sm:text-lg font-extrabold {{ $isHalloween ? 'text-white' : 'text-gray-900' }} break-words leading-snug mt-0.5 sm:mt-1">{{ $user->name }}</p>
             </div>
         </div>
 
         <!-- Department Card -->
-        <div class="bg-white rounded-xl p-4 sm:p-6 shadow-md border border-gray-100 flex items-center space-x-3.5 sm:space-x-4 hover:shadow-lg transition-shadow">
-            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-purple-50 flex items-center justify-center text-brand-purple text-xl sm:text-2xl flex-shrink-0">
+        <div class="{{ $isHalloween ? 'bg-[#160829]/95 border-orange-500/30 shadow-[0_4px_25px_rgba(0,0,0,0.5)] backdrop-blur-md hover:border-orange-500/60 hover:shadow-[0_4px_30px_rgba(255,120,0,0.25)]' : 'bg-white border-gray-100 shadow-md hover:shadow-lg' }} rounded-xl p-4 sm:p-6 border flex items-center space-x-3.5 sm:space-x-4 transition-all">
+            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl {{ $isHalloween ? 'bg-purple-500/25 text-purple-300 border border-purple-500/35' : 'bg-purple-50 text-brand-purple' }} flex items-center justify-center text-xl sm:text-2xl flex-shrink-0">
                 <i class="fas fa-building"></i>
             </div>
             <div class="min-w-0 flex-1">
-                <p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Department</p>
-                <p class="text-base sm:text-lg font-bold text-gray-900 break-words leading-snug mt-0.5 sm:mt-1">{{ $user->department ?: 'Not Assigned' }}</p>
+                <p class="text-[10px] sm:text-xs font-semibold {{ $isHalloween ? 'text-purple-300/80' : 'text-gray-500' }} uppercase tracking-wider">Department</p>
+                <p class="text-base sm:text-lg font-extrabold {{ $isHalloween ? 'text-white' : 'text-gray-900' }} break-words leading-snug mt-0.5 sm:mt-1">{{ $user->department ?: 'Not Assigned' }}</p>
             </div>
         </div>
 
         <!-- HOD Name Card -->
-        <div class="bg-white rounded-xl p-4 sm:p-6 shadow-md border border-gray-100 flex items-center space-x-3.5 sm:space-x-4 hover:shadow-lg transition-shadow sm:col-span-2 md:col-span-1">
-            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-blue-50 flex items-center justify-center text-brand-blue text-xl sm:text-2xl flex-shrink-0">
+        <div class="{{ $isHalloween ? 'bg-[#160829]/95 border-orange-500/30 shadow-[0_4px_25px_rgba(0,0,0,0.5)] backdrop-blur-md hover:border-orange-500/60 hover:shadow-[0_4px_30px_rgba(255,120,0,0.25)]' : 'bg-white border-gray-100 shadow-md hover:shadow-lg' }} rounded-xl p-4 sm:p-6 border flex items-center space-x-3.5 sm:space-x-4 transition-all sm:col-span-2 md:col-span-1">
+            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl {{ $isHalloween ? 'bg-amber-500/20 text-amber-400 border border-amber-500/35' : 'bg-blue-50 text-brand-blue' }} flex items-center justify-center text-xl sm:text-2xl flex-shrink-0">
                 <i class="fas fa-user-shield"></i>
             </div>
             <div class="min-w-0 flex-1">
-                <p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">HOD Name</p>
-                <p class="text-base sm:text-lg font-bold text-gray-900 break-words leading-snug mt-0.5 sm:mt-1">{{ $hodName }}</p>
+                <p class="text-[10px] sm:text-xs font-semibold {{ $isHalloween ? 'text-amber-300/80' : 'text-gray-500' }} uppercase tracking-wider">HOD Name</p>
+                <p class="text-base sm:text-lg font-extrabold {{ $isHalloween ? 'text-white' : 'text-gray-900' }} break-words leading-snug mt-0.5 sm:mt-1">{{ $hodName }}</p>
             </div>
         </div>
     </div>
@@ -191,14 +275,19 @@
     @endif
 
     <!-- Petty Cash Requests Table -->
-    <div class="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100">
-        <div class="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-50/50">
+    <div class="{{ $isHalloween ? 'bg-[#150726]/95 border-orange-500/30 shadow-[0_10px_35px_rgba(0,0,0,0.6)] backdrop-blur-md' : 'bg-white border-gray-100 shadow-md' }} rounded-2xl overflow-hidden border">
+        <div class="px-4 sm:px-6 py-4 border-b {{ $isHalloween ? 'border-orange-500/20 bg-[#1c0933]/90' : 'border-gray-100 bg-gray-50/50' }} flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-                <h2 class="text-base sm:text-lg font-bold text-gray-800">My Petty Cash Requests</h2>
-                <p class="text-xs text-gray-500">Track and manage your submitted expenditure requests.</p>
+                <h2 class="text-base sm:text-lg font-bold {{ $isHalloween ? 'text-white' : 'text-gray-800' }} flex items-center gap-2">
+                    @if($isHalloween)
+                        <i class="fas fa-receipt text-orange-400"></i>
+                    @endif
+                    <span>My Petty Cash Requests</span>
+                </h2>
+                <p class="text-xs {{ $isHalloween ? 'text-orange-200/70' : 'text-gray-500' }}">Track and manage your submitted expenditure requests.</p>
             </div>
             <button onclick="handleNewRequestClick(event)"
-                class="w-full sm:w-auto justify-center px-4 py-2.5 sm:py-2 bg-brand-pink text-white text-xs font-semibold rounded-lg hover:bg-brand-purple transition-all flex items-center shadow-sm">
+                class="w-full sm:w-auto justify-center px-4 py-2.5 sm:py-2 {{ $isHalloween ? 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold shadow-[0_0_15px_rgba(255,100,0,0.45)]' : 'bg-brand-pink hover:bg-brand-purple text-white font-semibold shadow-sm' }} text-xs rounded-lg transition-all flex items-center">
                 <i class="fas fa-plus mr-1.5"></i> New Request
             </button>
         </div>
@@ -206,7 +295,7 @@
         <div class="hidden md:block overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
-                    <tr class="border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 whitespace-nowrap">
+                    <tr class="border-b {{ $isHalloween ? 'border-orange-500/20 bg-[#180829] text-orange-300 font-bold' : 'border-gray-200 bg-gray-50 text-gray-500 font-semibold' }} text-xs uppercase tracking-wider whitespace-nowrap">
                         <th class="py-3.5 px-6">Ref #</th>
                         <th class="py-3.5 px-6">HOD Name</th>
                         <th class="py-3.5 px-6">Job Number</th>
@@ -215,23 +304,23 @@
                         <th class="py-3.5 px-6 text-right">Action</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-100 text-sm">
+                <tbody class="divide-y {{ $isHalloween ? 'divide-orange-500/10' : 'divide-gray-100' }} text-sm">
                     @forelse($pettyCashes as $pc)
-                        <tr class="hover:bg-gray-50/50 transition-colors whitespace-nowrap">
-                            <td class="py-3.5 px-6 font-mono font-bold text-gray-900">{{ $pc->reference_number }}</td>
-                            <td class="py-3.5 px-6 font-medium text-gray-800">{{ $pc->associated_hod->name ?? ($pc->hod->name ?? 'Not Assigned') }}</td>
+                        <tr class="{{ $isHalloween ? 'hover:bg-orange-500/10 text-gray-200' : 'hover:bg-gray-50/50 text-gray-800' }} transition-colors whitespace-nowrap">
+                            <td class="py-3.5 px-6 font-mono font-bold {{ $isHalloween ? 'text-orange-300' : 'text-gray-900' }}">{{ $pc->reference_number }}</td>
+                            <td class="py-3.5 px-6 font-medium {{ $isHalloween ? 'text-gray-200' : 'text-gray-800' }}">{{ $pc->associated_hod->name ?? ($pc->hod->name ?? 'Not Assigned') }}</td>
                             <td class="py-3.5 px-6">
                                 @if(count($pc->job_numbers))
                                     <div class="flex flex-wrap gap-1 max-w-[200px]">
                                         @foreach($pc->job_numbers as $jn)
-                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-100 text-slate-700 border border-slate-200">{{ $jn }}</span>
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono font-medium {{ $isHalloween ? 'bg-orange-500/15 text-orange-300 border-orange-500/30' : 'bg-slate-100 text-slate-700 border-slate-200' }} border">{{ $jn }}</span>
                                         @endforeach
                                     </div>
                                 @else
-                                    <span class="text-gray-400 font-mono text-xs">-</span>
+                                    <span class="{{ $isHalloween ? 'text-orange-400/50' : 'text-gray-400' }} font-mono text-xs">-</span>
                                 @endif
                             </td>
-                            <td class="py-3.5 px-6 font-bold text-gray-900">LKR {{ number_format($pc->total_amount, 2) }}</td>
+                            <td class="py-3.5 px-6 font-bold {{ $isHalloween ? 'text-white' : 'text-gray-900' }}">LKR {{ number_format($pc->total_amount, 2) }}</td>
                             <td class="py-3.5 px-6 whitespace-nowrap">
                                 @if($pc->status === 'pending_hod')
                                     <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 inline-flex items-center whitespace-nowrap">
@@ -288,18 +377,18 @@
                             </td>
                             <td class="py-3.5 px-6 text-right whitespace-nowrap space-x-2">
                                 <button onclick="viewPettyCashDetails({{ $pc->id }})"
-                                    class="px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-colors">
+                                    class="px-3 py-1.5 {{ $isHalloween ? 'bg-white/10 hover:bg-white/20 text-orange-200 border border-orange-500/30' : 'bg-gray-100 hover:bg-gray-200 text-gray-700' }} text-xs font-semibold rounded-lg transition-colors">
                                     Details
                                 </button>
                                 @if($pc->status === 'iou_issued')
                                     <button onclick="openSettleIouModal({{ $pc->id }})"
-                                        class="px-3 py-1.5 bg-brand-purple text-white text-xs font-bold rounded-lg hover:bg-brand-pink transition-colors inline-flex items-center shadow-sm">
+                                        class="px-3 py-1.5 {{ $isHalloween ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white shadow-md' : 'bg-brand-purple hover:bg-brand-pink text-white' }} text-xs font-bold rounded-lg transition-colors inline-flex items-center shadow-sm">
                                         <i class="fas fa-file-signature mr-1"></i> Settle IOU
                                     </button>
                                 @endif
                                 @if(in_array($pc->status, ['rejected_by_hod', 'rejected_by_super_admin', 'rejected_by_management']))
                                     <button onclick="openReappealModal({{ $pc->id }})"
-                                        class="px-3 py-1.5 bg-brand-blue text-white text-xs font-semibold rounded-lg hover:bg-brand-purple transition-colors">
+                                        class="px-3 py-1.5 {{ $isHalloween ? 'bg-orange-600/80 hover:bg-orange-600 text-white' : 'bg-brand-blue hover:bg-brand-purple text-white' }} text-xs font-semibold rounded-lg transition-colors">
                                         Re-appeal
                                     </button>
                                 @endif
@@ -307,8 +396,15 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="py-8 text-center text-gray-400">
-                                No Petty Cash requests submitted yet. Click "Petty Cash Request" to create one.
+                            <td colspan="6" class="py-12 text-center {{ $isHalloween ? 'text-orange-200/70' : 'text-gray-400' }}">
+                                @if($isHalloween)
+                                    <div class="flex flex-col items-center justify-center gap-2">
+                                        <span class="text-3xl opacity-80">👻</span>
+                                        <p class="font-medium text-sm">No Petty Cash requests submitted yet. Click "Petty Cash Request" to create one.</p>
+                                    </div>
+                                @else
+                                    No Petty Cash requests submitted yet. Click "Petty Cash Request" to create one.
+                                @endif
                             </td>
                         </tr>
                     @endforelse
@@ -317,10 +413,10 @@
         </div>
 
         <!-- Mobile Cards View -->
-        <div class="block md:hidden space-y-3 p-4 bg-gray-50/50">
+        <div class="block md:hidden space-y-3 p-4 {{ $isHalloween ? 'bg-[#180829]/95' : 'bg-gray-50/50' }}">
             @forelse($pettyCashes as $pc)
-                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
-                    <div class="flex items-center justify-between gap-2 pb-2.5 border-b border-gray-100">
+                <div class="{{ $isHalloween ? 'bg-[#1e0a33] border-orange-500/30 text-white' : 'bg-white border-gray-100' }} rounded-2xl border shadow-sm p-4 space-y-3">
+                    <div class="flex items-center justify-between gap-2 pb-2.5 border-b {{ $isHalloween ? 'border-orange-500/20' : 'border-gray-100' }}">
                         <div>
                             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">Ref Number</span>
                             <span class="font-mono text-xs font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200/60 inline-block">
@@ -433,8 +529,8 @@
                     </div>
                 </div>
             @empty
-                <div class="py-8 text-center text-gray-400 bg-white rounded-2xl border border-gray-100">
-                    <i class="fas fa-receipt text-3xl text-gray-300 mb-2 block"></i>
+                <div class="py-8 text-center {{ $isHalloween ? 'text-orange-200/70 bg-[#1d0a32] border-orange-500/30' : 'text-gray-400 bg-white border-gray-100' }} rounded-2xl border">
+                    <span class="text-3xl block mb-2">{{ $isHalloween ? '👻' : '🧾' }}</span>
                     No Petty Cash requests submitted yet.
                 </div>
             @endforelse
@@ -540,7 +636,7 @@
                     <!-- Initial Row -->
                     <div class="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center bg-gray-50 p-3 rounded-lg border border-gray-200 item-row">
                         <div class="col-span-1 md:col-span-4 category-col">
-                            <select name="items[0][expense_category_id]" required onchange="toggleDinnerAttendees(this)" class="w-full rounded-md border-gray-300 text-base sm:text-xs focus:ring-brand-blue item-cat-select">
+                            <select name="items[0][expense_category_id]" required onchange="toggleMealAllowanceAttendees(this)" class="w-full rounded-md border-gray-300 text-base sm:text-xs focus:ring-brand-blue item-cat-select">
                                 <option value="">Select Category *</option>
                                 @foreach($expenseCategories as $category)
                                     <option value="{{ $category->id }}">{{ $category->name }}</option>
@@ -561,7 +657,7 @@
                         <div class="attendees-container hidden col-span-1 md:col-span-12 mt-2 p-2.5 bg-blue-50/80 border border-blue-200 rounded-lg text-xs">
                             <div class="flex items-center justify-between mb-1.5">
                                 <span class="font-bold text-blue-900 flex items-center gap-1.5">
-                                    <i class="fas fa-utensils text-brand-blue"></i> Dinner Attendees / People Names (Max 5):
+                                    <i class="fas fa-utensils text-brand-blue"></i> Meal Allowance Attendees / People Names (Max 5):
                                 </span>
                                 <span class="text-[11px] text-blue-700">Enter names of people who attended</span>
                             </div>
@@ -892,20 +988,21 @@
 <script>
     const categoriesData = @json($expenseCategories);
 
-    function toggleDinnerAttendees(selectElem) {
+    function toggleMealAllowanceAttendees(selectElem) {
         const row = selectElem.closest('.grid');
         if (!row) return;
         const container = row.querySelector('.attendees-container');
         if (!container) return;
         
-        const selectedText = selectElem.options[selectElem.selectedIndex]?.text || '';
-        if (selectedText.toLowerCase().includes('dinner')) {
+        const selectedText = (selectElem.options[selectElem.selectedIndex]?.text || '').toLowerCase();
+        if (selectedText.includes('meal allowance') || selectedText.includes('meal') || selectedText.includes('dinner')) {
             container.classList.remove('hidden');
         } else {
             container.classList.add('hidden');
             container.querySelectorAll('input').forEach(i => i.value = '');
         }
     }
+    const toggleDinnerAttendees = toggleMealAllowanceAttendees;
 
     let isStaffIouMode = false;
 
@@ -1061,7 +1158,7 @@
         row.className = 'grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center bg-gray-50 p-3 rounded-lg border border-gray-200 item-row';
         row.innerHTML = `
             <div class="col-span-1 md:col-span-4 category-col">
-                <select name="items[${index}][expense_category_id]" required onchange="toggleDinnerAttendees(this)" class="w-full rounded-md border-gray-300 text-base sm:text-xs focus:ring-brand-blue item-cat-select">
+                <select name="items[${index}][expense_category_id]" required onchange="toggleMealAllowanceAttendees(this)" class="w-full rounded-md border-gray-300 text-base sm:text-xs focus:ring-brand-blue item-cat-select">
                     <option value="">Select Category *</option>
                     ${catOptions}
                 </select>
@@ -1080,7 +1177,7 @@
             <div class="attendees-container hidden col-span-1 md:col-span-12 mt-2 p-2.5 bg-blue-50/80 border border-blue-200 rounded-lg text-xs">
                 <div class="flex items-center justify-between mb-1.5">
                     <span class="font-bold text-blue-900 flex items-center gap-1.5">
-                        <i class="fas fa-utensils text-brand-blue"></i> Dinner Attendees / People Names (Max 5):
+                        <i class="fas fa-utensils text-brand-blue"></i> Meal Allowance Attendees / People Names (Max 5):
                     </span>
                     <span class="text-[11px] text-blue-700">Enter names of people who attended</span>
                 </div>
