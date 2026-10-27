@@ -65,11 +65,6 @@
                         </button>
                     @endif
                     @if(auth()->user()->isITAdmin())
-                        <button onclick="showSection('financial-performance-settings')"
-                            class="section-btn text-left px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-lg bg-white shadow-sm border border-gray-100 hover:border-brand-blue transition-all shrink-0 text-xs sm:text-sm"
-                            id="btn-financial-performance-settings">
-                            <i class="fas fa-chart-line mr-2 text-emerald-500"></i> Financial Performance
-                        </button>
                         <button onclick="showSection('seasonal-theme')"
                             class="section-btn text-left px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-lg bg-white shadow-sm border border-gray-100 hover:border-orange-500 transition-all shrink-0 text-xs sm:text-sm"
                             id="btn-seasonal-theme">
@@ -2151,112 +2146,6 @@
                     </section>
                 @endif
 
-                @if(auth()->user()->isITAdmin())
-                    <!-- Financial Performance Permissions Section -->
-                    <section id="section-financial-performance-settings" class="settings-section hidden space-y-6">
-                        <form action="{{ route('settings.updateFinancialPerformancePermissions') }}" method="POST">
-                            @csrf
-                            <div class="bg-white rounded-xl shadow-md overflow-hidden">
-                                <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                                    <div>
-                                        <h3 class="text-lg font-bold text-gray-800">Financial Performance Dashboard Visibility</h3>
-                                        <p class="text-xs text-gray-500 mt-0.5">Control which executive roles can view and access the Financial Performance Dashboard</p>
-                                    </div>
-                                    <button type="submit"
-                                        class="px-4 py-2 bg-brand-pink text-white rounded-md hover:bg-brand-purple text-sm font-medium transition-all shadow-sm">
-                                        Save Changes
-                                    </button>
-                                </div>
-                                <div class="p-6 space-y-6">
-                                    <!-- Role: IT Admin (Always Active) -->
-                                    <div class="flex items-start justify-between p-4 rounded-xl border border-emerald-100 bg-emerald-50/50">
-                                        <div class="flex items-start space-x-3">
-                                            <div class="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm shrink-0 mt-0.5">
-                                                <i class="fas fa-shield-alt"></i>
-                                            </div>
-                                            <div>
-                                                <div class="flex items-center space-x-2">
-                                                    <h4 class="text-sm font-bold text-gray-800">IT Admin Role</h4>
-                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">Always Enabled</span>
-                                                </div>
-                                                <p class="text-xs text-gray-600 mt-1">IT Admin role has permanent master access to view the dashboard and manage settings.</p>
-                                            </div>
-                                        </div>
-                                        <div class="text-emerald-600 font-bold text-xs mt-1">
-                                            <i class="fas fa-lock mr-1"></i> Locked
-                                        </div>
-                                    </div>
-
-                                    @php
-                                        $financeAdminEnabled = filter_var(\App\Models\Setting::get('financial_performance_finance_admin_enabled', false), FILTER_VALIDATE_BOOLEAN);
-                                        $managementEnabled = filter_var(\App\Models\Setting::get('financial_performance_management_enabled', true), FILTER_VALIDATE_BOOLEAN);
-                                    @endphp
-
-                                    <!-- Role: Finance Admin Toggle -->
-                                    <div class="flex items-start justify-between p-4 rounded-xl border border-gray-200 hover:border-gray-300 transition-all bg-white">
-                                        <div class="flex items-start space-x-3">
-                                            <div class="w-9 h-9 rounded-lg bg-blue-100 text-brand-blue flex items-center justify-center font-bold text-sm shrink-0 mt-0.5">
-                                                <i class="fas fa-file-invoice-dollar"></i>
-                                            </div>
-                                            <div>
-                                                <div class="flex items-center space-x-2">
-                                                    <label for="fp_finance_admin" class="text-sm font-bold text-gray-800 cursor-pointer">Finance Admin Role</label>
-                                                    @if($financeAdminEnabled)
-                                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-green-100 text-green-700">Active</span>
-                                                    @else
-                                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600">Disabled</span>
-                                                    @endif
-                                                </div>
-                                                <p class="text-xs text-gray-600 mt-1">
-                                                    Enable to display the Financial Performance navigation tab and grant access to the full dashboard and live CRM sync for all Finance Admin users.
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div class="flex items-center h-8">
-                                            <label class="relative inline-flex items-center cursor-pointer">
-                                                <input type="checkbox" name="financial_performance_finance_admin_enabled" id="fp_finance_admin" value="1" {{ $financeAdminEnabled ? 'checked' : '' }} class="sr-only peer">
-                                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    <!-- Role: Management Role Toggle -->
-                                    <div class="flex items-start justify-between p-4 rounded-xl border border-gray-200 hover:border-gray-300 transition-all bg-white">
-                                        <div class="flex items-start space-x-3">
-                                            <div class="w-9 h-9 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-sm shrink-0 mt-0.5">
-                                                <i class="fas fa-user-tie"></i>
-                                            </div>
-                                            <div>
-                                                <div class="flex items-center space-x-2">
-                                                    <label for="fp_management" class="text-sm font-bold text-gray-800 cursor-pointer">Management Role</label>
-                                                    @if($managementEnabled)
-                                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-green-100 text-green-700">Active</span>
-                                                    @else
-                                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600">Disabled</span>
-                                                    @endif
-                                                </div>
-                                                <p class="text-xs text-gray-600 mt-1">
-                                                    Enable to display the Financial Performance navigation tab and grant access to the full dashboard and live CRM sync for all Management role users.
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div class="flex items-center h-8">
-                                            <label class="relative inline-flex items-center cursor-pointer">
-                                                <input type="checkbox" name="financial_performance_management_enabled" id="fp_management" value="1" {{ $managementEnabled ? 'checked' : '' }} class="sr-only peer">
-                                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 flex items-center space-x-2">
-                                        <i class="fas fa-info-circle text-slate-400"></i>
-                                        <span>Changes apply immediately to navigation menus, direct URL access, and live CRM API endpoints.</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </form>
-                    </section>
-                @endif
 
                 @if(auth()->user()->isITAdmin())
                     <!-- Seasonal Theme (Halloween) Section -->

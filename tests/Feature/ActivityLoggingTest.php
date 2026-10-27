@@ -13,34 +13,6 @@ class ActivityLoggingTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_activity_is_logged_when_authorized_user_accesses_financial_performance_tab(): void
-    {
-        $itAdmin = User::factory()->create([
-            'role' => 'IT Admin',
-        ]);
-
-        $this->actingAs($itAdmin)->get(route('financial-performance.index'));
-
-        $this->assertDatabaseHas('activities', [
-            'user_id' => $itAdmin->id,
-            'description' => 'Accessed Financial Performance tab',
-        ]);
-    }
-
-    public function test_activity_is_not_logged_when_unauthorized_user_is_blocked_from_financial_performance_tab(): void
-    {
-        $staff = User::factory()->create([
-            'role' => 'Staff',
-        ]);
-
-        $this->actingAs($staff)->get(route('financial-performance.index'));
-
-        $this->assertDatabaseMissing('activities', [
-            'user_id' => $staff->id,
-            'description' => 'Accessed Financial Performance tab',
-        ]);
-    }
-
     public function test_activity_is_logged_when_user_resets_password_via_otp(): void
     {
         $user = User::factory()->create([

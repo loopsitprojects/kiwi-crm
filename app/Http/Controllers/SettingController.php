@@ -1087,29 +1087,6 @@ class SettingController extends Controller
     }
 
     /**
-     * Update access permissions for the Financial Performance Dashboard.
-     * Restricted to IT Admin only.
-     */
-    public function updateFinancialPerformancePermissions(Request $request)
-    {
-        $user = auth()->user();
-
-        if (!$user || !$user->isITAdmin()) {
-            abort(403, 'Unauthorized action. Only IT Admin can configure Financial Performance permissions.');
-        }
-
-        $financeAdminEnabled = $request->boolean('financial_performance_finance_admin_enabled');
-        $managementEnabled = $request->boolean('financial_performance_management_enabled');
-
-        Setting::set('financial_performance_finance_admin_enabled', $financeAdminEnabled ? '1' : '0', 'permissions');
-        Setting::set('financial_performance_management_enabled', $managementEnabled ? '1' : '0', 'permissions');
-
-        return redirect()->route('settings.index', ['section' => 'financial-performance-settings'])
-            ->with('success', 'Financial Performance permissions updated successfully.')
-            ->with('section', 'financial-performance-settings');
-    }
-
-    /**
      * Update Halloween Theme settings.
      * Accessible strictly by IT Admin.
      */

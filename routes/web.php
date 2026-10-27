@@ -302,19 +302,11 @@ Route::middleware(['auth'])->group(function () {
             Route::post('settings/webhook', [SettingController::class, 'updateWebhook'])->name('settings.webhook.update');
             Route::post('settings/webhook/test', [SettingController::class, 'testWorkflowWebhook'])->name('settings.webhook.test');
 
-            // Financial Performance Permissions Setting
-            Route::post('settings/financial-performance-permissions', [SettingController::class, 'updateFinancialPerformancePermissions'])->name('settings.updateFinancialPerformancePermissions');
-
             // Seasonal Theme (Halloween) Settings
             Route::post('settings/halloween-theme', [SettingController::class, 'updateHalloweenTheme'])->name('settings.halloween.update');
             Route::post('settings/halloween-theme/toggle', [SettingController::class, 'toggleHalloweenTheme'])->name('settings.halloween.toggle');
         });
 
-        // Financial Performance Dashboard (Access controlled dynamically by IT Admin settings)
-        Route::middleware(['role:IT Admin,Management,Finance Admin'])->group(function () {
-            Route::get('financial-performance', [\App\Http\Controllers\FinancialPerformanceController::class, 'index'])->name('financial-performance.index');
-            Route::get('financial-performance/data', [\App\Http\Controllers\FinancialPerformanceController::class, 'data'])->name('financial-performance.data');
-        });
     });
 });
 

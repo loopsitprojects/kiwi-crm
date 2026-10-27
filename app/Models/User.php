@@ -227,31 +227,6 @@ class User extends Authenticatable
         return $this->role === 'HR Admin' || $this->hasRole('hr_admin') || $this->hasRole('hr admin');
     }
 
-    /**
-     * Check if user is authorized to view the Financial Performance Dashboard.
-     * Controlled by IT Admin settings for Finance Admin and Management roles.
-     * IT Admin always has access.
-     *
-     * @return bool
-     */
-    public function canViewFinancialPerformance(): bool
-    {
-        if ($this->isITAdmin()) {
-            return true;
-        }
-
-        if ($this->isFinanceAdmin()) {
-            $val = Setting::get('financial_performance_finance_admin_enabled', false);
-            return filter_var($val, FILTER_VALIDATE_BOOLEAN);
-        }
-
-        if ($this->isManagement()) {
-            $val = Setting::get('financial_performance_management_enabled', true);
-            return filter_var($val, FILTER_VALIDATE_BOOLEAN);
-        }
-
-        return false;
-    }
 
     /**
      * Check if user is authorized to edit the invoice number.
